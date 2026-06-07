@@ -1,0 +1,151 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id               String            @id @default(uuid())
+  email            String            @unique
+  name             String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  candidateProfile CandidateProfile?
+  jobs             Job[]
+  applications     Application[]
+  resumes          Resume[]
+}
+
+model CandidateProfile {
+  id                String   @id @default(uuid())
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id])
+  targetRoles       String[]
+  targetCompanies   String[]
+  targetLocations   String[]
+  workAuthorization String?
+  yearsOfExperience Int      @default(0)
+  coreSkills        String[]
+  domainExperience  String[]
+  preferredWorkMode String?
+  minimumSalary     Int?
+  resumeText        String?  @db.Text
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model Resume {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  title     String
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Company {
+  id           String        @id @default(uuid())
+  name         String        @unique
+  domain       String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  jobs         Job[]
+  applications Application[]
+}
+
+model Job {
+  id                     String                  @id @default(uuid())
+  userId                 String
+  user                   User                    @relation(fields: [userId], references: [id])
+  companyId              String?
+  company                Company?                @relation(fields: [companyId], references: [id])
+  title                  String
+  url                    String?
+  location               String?
+  workMode               String? // remote, hybrid, onsite, unknown
+  salaryRange            String?
+  visaSponsorship        String?
+  source                 String? // LinkedIn, recruiter, referral, company site, other
+  rawJobDescription      String?                 @db.Text
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  applications           Application[]
+  jobDescriptionAnalysis JobDescriptionAnalysis?
+}
+
+model JobDescriptionAnalysis {
+  id                           String   @id @default(uuid())
+  jobId                        String   @unique
+  job                          Job      @relation(fields: [jobId], references: [id])
+  overallScore                 Int?
+  requiredSkillsScore          Int?
+  experienceScore              Int?
+  domainScore                  Int?
+  seniorityScore               Int?
+  locationScore                Int?
+  visaScore                    Int?
+  bonusSkillsScore             Int?
+  explanation                  String?  @db.Text
+  extractedFields              Json?
+  matchedKeywords              String[]
+  missingKeywords              String[]
+  riskFlags                    String[]
+  suggestedResumeKeywords      String[]
+  suggestedApplicationStrategy String?  @db.Text
+  createdAt                    DateTime @default(now())
+  updatedAt                    DateTime @updatedAt
+}
+
+model Application {
+  id                String             @id @default(uuid())
+  userId            String
+  user              User               @relation(fields: [userId], references: [id])
+  jobId             String
+  job               Job                @relation(fields: [jobId], references: [id])
+  companyId         String?
+  company           Company?           @relation(fields: [companyId], references: [id])
+  status            String // Saved, Applied, Recruiter Screen, Hiring Manager Screen, Technical Interview, Onsite, Offer, Rejected, Withdrawn
+  dateSaved         DateTime           @default(now())
+  dateApplied       DateTime?
+  nextAction        String?
+  nextActionDueDate DateTime?
+  notes             String?            @db.Text
+  matchScore        Int?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  events            ApplicationEvent[]
+  contacts          Contact[]          @relation("ApplicationContacts")
+}
+
+model ApplicationEvent {
+  id            String      @id @default(uuid())
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  eventType     String // e.g., "Follow-up Sent", "Interview Scheduled"
+  note          String?     @db.Text
+  eventDate     DateTime    @default(now())
+  contactId     String?
+  contact       Contact?    @relation(fields: [contactId], references: [id])
+  createdAt     DateTime    @default(now())
+}
+
+model Contact {
+  id               String             @id @default(uuid())
+  name             String
+  email            String?
+  phone            String?
+  role             String? // e.g., "Recruiter", "Hiring Manager"
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  applications     Application[]      @relation("ApplicationContacts")
+  ApplicationEvent ApplicationEvent[]
+}
+
+model Source {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+}

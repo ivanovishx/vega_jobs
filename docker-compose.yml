@@ -1,0 +1,16 @@
+version: '3.8'
+services:
+  db:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: vega_user
+      POSTGRES_PASSWORD: vega_password
+      POSTGRES_DB: vega_db
+    ports:
+      - '5432:5432'
+    volumes:
+      - vega_pgdata:/var/lib/postgresql/data
+
+volumes:
+  vega_pgdata:
