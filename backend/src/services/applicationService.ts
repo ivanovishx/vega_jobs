@@ -41,13 +41,16 @@ export const applicationService = {
     };
   },
 
-  async listActiveApplications(filters?: { status?: string[]; company?: string; minMatchScore?: number; dueSoon?: boolean }) {
+  async listActiveApplications(filters?: { status?: string | string[]; company?: string; minMatchScore?: number; dueSoon?: boolean }) {
+    // 'Saved' positions are bookmarks, not applications — excluded unless explicitly requested.
     const where: any = {
-      status: { notIn: ['Rejected', 'Withdrawn', 'Closed'] }
+      status: { notIn: ['Rejected', 'Withdrawn', 'Closed', 'Saved'] }
     };
 
-    if (filters?.status && filters.status.length > 0) {
-      where.status = { in: filters.status };
+    // Normalize: express query params arrive as a string for a single value
+    const statusFilter = typeof filters?.status === 'string' ? [filters.status] : filters?.status;
+    if (statusFilter && statusFilter.length > 0) {
+      where.status = { in: statusFilter };
     }
     
     // Simplification for MVP

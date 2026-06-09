@@ -26,8 +26,8 @@ export const fetchDashboardSummary = async (profileId: string) => {
   return res.data;
 };
 
-export const fetchApplications = async () => {
-  const res = await api.get('applications');
+export const fetchApplications = async (status?: string) => {
+  const res = await api.get('applications', { params: status ? { status } : undefined });
   return res.data;
 };
 

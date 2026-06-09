@@ -10,8 +10,8 @@ export default function SavedJobs() {
 
   const loadSavedJobs = async () => {
     try {
-      const res = await fetchApplications();
-      setApplications(res.applications.filter((a: any) => a.status === 'Saved'));
+      const res = await fetchApplications('Saved');
+      setApplications(res.applications);
     } catch (err) {
       console.error(err);
     }
