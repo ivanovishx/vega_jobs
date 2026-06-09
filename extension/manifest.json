@@ -5,13 +5,15 @@
   "description": "Automatically fill job application forms using data from your Vega candidate profile.",
   "permissions": [
     "activeTab",
+    "tabs",
     "scripting",
     "storage",
     "unlimitedStorage"
   ],
   "host_permissions": [
     "http://localhost:3001/*",
-    "https://vega-jobs.onrender.com/*"
+    "https://vega-jobs.onrender.com/*",
+    "<all_urls>"
   ],
   "action": {
     "default_popup": "popup/popup.html"

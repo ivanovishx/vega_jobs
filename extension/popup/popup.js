@@ -31,15 +31,25 @@ document.addEventListener('DOMContentLoaded', async () => {
   const resumeUpload = document.getElementById('resumeUpload');
   const resumeStatus = document.getElementById('resumeStatus');
   const resumeNameSpan = document.getElementById('resumeName');
+  const autoEvalToggle = document.getElementById('autoEvalToggle');
 
-  // Load saved resume state
+  // Load saved resume and settings state
   if (chrome.storage && chrome.storage.local) {
-    chrome.storage.local.get(['resumeFileName'], (result) => {
+    chrome.storage.local.get(['resumeFileName', 'autoEvaluate'], (result) => {
       if (result.resumeFileName) {
         resumeNameSpan.textContent = result.resumeFileName;
         resumeStatus.style.display = 'block';
         logDebug(`Loaded saved resume info: ${result.resumeFileName}`);
       }
+      if (result.autoEvaluate !== undefined) {
+        autoEvalToggle.checked = result.autoEvaluate;
+      }
+    });
+
+    autoEvalToggle.addEventListener('change', (e) => {
+      chrome.storage.local.set({ autoEvaluate: e.target.checked }, () => {
+        logDebug(`Auto-evaluate toggled: ${e.target.checked}`);
+      });
     });
 
     resumeUpload.addEventListener('change', (e) => {
