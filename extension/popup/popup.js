@@ -23,6 +23,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const statusEl = document.getElementById('status');
     const btn = document.getElementById('autofillBtn');
     const evalBtn = document.getElementById('evaluateBtn');
+    const saveJobBtn = document.getElementById('saveJobBtn');
     const evalResult = document.getElementById('evalResult');
     const errorEl = document.getElementById('errorMsg');
   const debugToggleBtn = document.getElementById('debugToggleBtn');
@@ -208,6 +209,72 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     evalBtn.textContent = 'Evaluate Job';
     evalBtn.disabled = false;
+  });
+
+  saveJobBtn.addEventListener('click', async () => {
+    saveJobBtn.textContent = 'Scraping...';
+    saveJobBtn.disabled = true;
+    errorEl.textContent = '';
+    evalResult.style.display = 'none';
+
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!tab || !tab.url) throw new Error("Could not get current tab URL");
+
+      logDebug(`Scraping URL: ${tab.url}`);
+      
+      // Step 1: Smart Autofill (Parse URL)
+      const formData = new FormData();
+      formData.append('url', tab.url);
+      
+      const parseRes = await fetch('https://vega-jobs.onrender.com/api/applications/autofill', {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (!parseRes.ok) throw new Error(`Parse error: ${parseRes.status}`);
+      const parsedData = await parseRes.json();
+      
+      if (!parsedData.companyName || !parsedData.jobTitle) {
+        throw new Error("Could not extract company or job title from page.");
+      }
+      
+      logDebug(`Extracted: ${parsedData.jobTitle} at ${parsedData.companyName}`);
+      saveJobBtn.textContent = 'Saving...';
+
+      // Step 2: Create Application
+      const saveRes = await fetch('https://vega-jobs.onrender.com/api/applications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyName: parsedData.companyName,
+          jobTitle: parsedData.jobTitle,
+          jobUrl: tab.url,
+          status: 'Applied',
+          dateApplied: new Date().toISOString()
+        })
+      });
+
+      if (!saveRes.ok) {
+        const errorData = await saveRes.json();
+        throw new Error(errorData.error || `Save error: ${saveRes.status}`);
+      }
+      
+      evalResult.style.display = 'block';
+      evalResult.style.backgroundColor = '#ecfdf5';
+      evalResult.style.color = '#065f46';
+      evalResult.style.border = '1px solid #a7f3d0';
+      evalResult.textContent = `✅ Saved ${parsedData.jobTitle} at ${parsedData.companyName}!`;
+      logDebug(`Successfully saved application.`);
+      
+    } catch (err) {
+      logDebug(`Save Job error: ${err.message}`);
+      console.error(err);
+      errorEl.textContent = 'Save Error: ' + err.message;
+    }
+
+    saveJobBtn.textContent = 'Save as Applied';
+    saveJobBtn.disabled = false;
   });
 
   } catch (globalErr) {

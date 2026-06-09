@@ -105,7 +105,7 @@ async function evaluateJob(tabId, url) {
         setTimeout(() => {
           toast.style.opacity = '0';
           setTimeout(() => toast.remove(), 500);
-        }, 5000);
+        }, 3000);
       },
       args: [toastMsg, bgColor, textColor, borderColor]
     });
