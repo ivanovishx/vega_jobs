@@ -28,5 +28,25 @@ chrome.commands.onCommand.addListener(async (command) => {
     } catch (err) {
       console.error("Autofill shortcut error:", err);
     }
+  } else if (command === 'evaluate_job') {
+    console.log("Triggering evaluate_job via keyboard shortcut");
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!tab || !tab.url) return;
+
+      const res = await fetch(`https://vega-jobs.onrender.com/api/browser-extension/evaluate-job?url=${encodeURIComponent(tab.url)}`);
+      if (!res.ok) throw new Error(`HTTP error: ${res.status}`);
+      const data = await res.json();
+      
+      const alertMsg = data.applied ? `🚨 ${data.message} (Status: ${data.status})` : `✨ ${data.message}`;
+      
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: (msg) => alert(msg),
+        args: [alertMsg]
+      });
+    } catch (err) {
+      console.error("Eval shortcut error:", err);
+    }
   }
 });

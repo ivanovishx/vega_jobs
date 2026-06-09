@@ -25,7 +25,14 @@
         "default": "Alt+Shift+K",
         "mac": "Command+Shift+K"
       },
-      "description": "Autofill job application"
+      "description": "Open Extension"
+    },
+    "evaluate_job": {
+      "suggested_key": {
+        "default": "Alt+Shift+O",
+        "mac": "Command+Shift+O"
+      },
+      "description": "Evaluate Current Job"
     }
   }
 }

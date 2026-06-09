@@ -80,5 +80,20 @@ export const jobService = {
       where: { id },
       include: { company: true, jobDescriptionAnalysis: true, applications: true }
     });
+  },
+
+  async getJobByUrl(url: string) {
+    // Strip query parameters for better matching, unless they are essential.
+    // For simplicity, we just do a direct match or contains.
+    const baseUrl = url.split('?')[0];
+    return prisma.job.findFirst({
+      where: { 
+        url: {
+          contains: baseUrl,
+          mode: 'insensitive'
+        }
+      },
+      include: { company: true, applications: true }
+    });
   }
 };

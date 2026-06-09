@@ -22,7 +22,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   try {
     const statusEl = document.getElementById('status');
     const btn = document.getElementById('autofillBtn');
-  const errorEl = document.getElementById('errorMsg');
+    const evalBtn = document.getElementById('evaluateBtn');
+    const evalResult = document.getElementById('evalResult');
+    const errorEl = document.getElementById('errorMsg');
   const debugToggleBtn = document.getElementById('debugToggleBtn');
   const debugLogs = document.getElementById('debugLogs');
   const clearLogsBtn = document.getElementById('clearLogsBtn');
@@ -160,6 +162,44 @@ document.addEventListener('DOMContentLoaded', async () => {
       btn.disabled = false;
     }
   });
+
+  evalBtn.addEventListener('click', async () => {
+    evalBtn.textContent = 'Evaluating...';
+    evalBtn.disabled = true;
+    evalResult.style.display = 'none';
+
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!tab || !tab.url) throw new Error("Could not get current tab URL");
+
+      logDebug(`Evaluating URL: ${tab.url}`);
+      const res = await fetch(`https://vega-jobs.onrender.com/api/browser-extension/evaluate-job?url=${encodeURIComponent(tab.url)}`);
+      
+      if (!res.ok) throw new Error(`HTTP error: ${res.status}`);
+      const data = await res.json();
+      
+      evalResult.style.display = 'block';
+      if (data.applied) {
+        evalResult.style.backgroundColor = '#fef2f2'; // light red
+        evalResult.style.color = '#991b1b';
+        evalResult.style.border = '1px solid #fecaca';
+        evalResult.textContent = `🚨 ${data.message} (Status: ${data.status})`;
+      } else {
+        evalResult.style.backgroundColor = '#ecfdf5'; // light green
+        evalResult.style.color = '#065f46';
+        evalResult.style.border = '1px solid #a7f3d0';
+        evalResult.textContent = `✨ ${data.message}`;
+      }
+    } catch (err) {
+      logDebug(`Eval error: ${err.message}`);
+      console.error(err);
+      errorEl.textContent = 'Eval Error: ' + err.message;
+    }
+
+    evalBtn.textContent = 'Evaluate Job';
+    evalBtn.disabled = false;
+  });
+
   } catch (globalErr) {
     const errorEl = document.getElementById('errorMsg');
     if (errorEl) {
