@@ -115,7 +115,7 @@ model Application {
   job               Job                @relation(fields: [jobId], references: [id])
   companyId         String?
   company           Company?           @relation(fields: [companyId], references: [id])
-  status            String // Saved, Applied, Recruiter Screen, Hiring Manager Screen, Technical Interview, Onsite, Offer, Rejected, Withdrawn
+  status            String // To Apply, Applied, Recruiter Screen, Hiring Manager Screen, Technical Interview, Onsite, Offer, Rejected, Withdrawn
   dateSaved         DateTime           @default(now())
   dateApplied       DateTime?
   nextAction        String?

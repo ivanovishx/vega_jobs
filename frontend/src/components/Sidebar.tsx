@@ -8,7 +8,7 @@ export default function Sidebar() {
   const links = [
     { name: 'Dashboard', path: '/', icon: Home },
     { name: 'Applications', path: '/applications', icon: Briefcase },
-    { name: 'Saved Positions', path: '/saved-jobs', icon: Bookmark },
+    { name: 'Positions to Apply', path: '/saved-jobs', icon: Bookmark },
     { name: 'Job Analyzer', path: '/analyzer', icon: FileSearch },
     { name: 'Profile', path: '/profile', icon: User },
   ];
