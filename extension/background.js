@@ -5,7 +5,7 @@ chrome.commands.onCommand.addListener(async (command) => {
       const res = await fetch('https://vega-jobs.onrender.com/api/profile');
       if (!res.ok) throw new Error("Failed to fetch profile");
       const profile = await res.json();
-      
+
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (!tab) return;
 
@@ -37,9 +37,9 @@ chrome.commands.onCommand.addListener(async (command) => {
       const res = await fetch(`https://vega-jobs.onrender.com/api/browser-extension/evaluate-job?url=${encodeURIComponent(tab.url)}`);
       if (!res.ok) throw new Error(`HTTP error: ${res.status}`);
       const data = await res.json();
-      
+
       const alertMsg = data.applied ? `🚨 ${data.message} (Status: ${data.status})` : `✨ ${data.message}`;
-      
+
       await chrome.scripting.executeScript({
         target: { tabId: tab.id },
         func: (msg) => alert(msg),
@@ -57,7 +57,7 @@ async function evaluateJob(tabId, url) {
     const res = await fetch(`https://vega-jobs.onrender.com/api/browser-extension/evaluate-job?url=${encodeURIComponent(url)}`);
     if (!res.ok) return;
     const data = await res.json();
-    
+
     // Set Badge Color based on status
     if (data.applied) {
       chrome.action.setBadgeBackgroundColor({ tabId, color: '#DC2626' }); // Red
@@ -101,11 +101,11 @@ async function evaluateJob(tabId, url) {
           transition: opacity 0.5s ease-in-out;
         `;
         document.body.appendChild(toast);
-        
+
         setTimeout(() => {
           toast.style.opacity = '0';
           setTimeout(() => toast.remove(), 500);
-        }, 3000);
+        }, 5000);
       },
       args: [toastMsg, bgColor, textColor, borderColor]
     });
