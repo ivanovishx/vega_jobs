@@ -10,7 +10,7 @@ export default function SavedJobs() {
 
   const loadSavedJobs = async () => {
     try {
-      const res = await fetchApplications('Saved');
+      const res = await fetchApplications('To Apply');
       setApplications(res.applications);
     } catch (err) {
       console.error(err);
@@ -45,7 +45,7 @@ export default function SavedJobs() {
         location: parsedData.location,
         salaryRange: parsedData.salaryRange,
         notes: parsedData.notes,
-        status: 'Saved',
+        status: 'To Apply',
         dateApplied: new Date().toISOString()
       });
 
@@ -75,15 +75,15 @@ export default function SavedJobs() {
       <div className="sm:flex sm:items-center">
         <div className="sm:flex-auto">
           <h2 className="text-2xl font-bold leading-7 text-gray-900 sm:truncate sm:text-3xl sm:tracking-tight">
-            Saved Positions
+            Positions to Apply
           </h2>
-          <p className="mt-2 text-sm text-gray-700">A pipeline of job opportunities scraped from the web or entered manually.</p>
+          <p className="mt-2 text-sm text-gray-700">A pipeline of job opportunities to apply to — scraped from the web or entered manually.</p>
         </div>
       </div>
       
       {/* Manual URL Scrape Section */}
       <div className="bg-white p-4 shadow rounded-lg mb-6 border border-gray-200">
-        <h3 className="text-sm font-medium text-gray-900 mb-2">Manually Save a Position</h3>
+        <h3 className="text-sm font-medium text-gray-900 mb-2">Manually Add a Position</h3>
         <form onSubmit={handleManualScrape} className="flex space-x-3">
           <input 
             type="url" 
@@ -159,7 +159,7 @@ export default function SavedJobs() {
                   {filteredApplications.length === 0 && (
                     <tr>
                       <td colSpan={6} className="py-4 text-center text-sm text-gray-500">
-                        No saved positions found.
+                        No positions to apply found.
                       </td>
                     </tr>
                   )}

@@ -89,7 +89,7 @@ async function evaluateJob(tabId, url) {
                 location: parsed.location,
                 salaryRange: parsed.salaryRange,
                 notes: parsed.notes,
-                status: 'Saved',
+                status: 'To Apply',
                 dateApplied: new Date().toISOString()
               })
             });
