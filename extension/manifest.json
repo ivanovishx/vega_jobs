@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "Vega Smart Autofill",
+  "version": "1.0.0",
+  "description": "Automatically fill job application forms using data from your Vega candidate profile.",
+  "permissions": [
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": [
+    "http://localhost:3001/*",
+    "https://vega-jobs.onrender.com/*"
+  ],
+  "action": {
+    "default_popup": "popup/popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "commands": {
+    "autofill": {
+      "suggested_key": {
+        "default": "Alt+L",
+        "mac": "Command+L"
+      },
+      "description": "Autofill job application"
+    }
+  }
+}
