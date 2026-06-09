@@ -23,9 +23,27 @@ export const candidateProfileService = {
   },
 
   async updateCandidateProfile(id: string, data: any) {
+    const { user, ...profileData } = data;
+    
+    // Remove auto-managed fields from generic update object
+    delete profileData.id;
+    delete profileData.userId;
+    delete profileData.createdAt;
+    delete profileData.updatedAt;
+
+    const updateQuery: any = { ...profileData };
+
+    if (user && user.name) {
+      updateQuery.user = {
+        update: {
+          name: user.name
+        }
+      };
+    }
+
     return prisma.candidateProfile.update({
       where: { id },
-      data
+      data: updateQuery
     });
   }
 };

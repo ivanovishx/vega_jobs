@@ -5,7 +5,9 @@
   "description": "Automatically fill job application forms using data from your Vega candidate profile.",
   "permissions": [
     "activeTab",
-    "scripting"
+    "scripting",
+    "storage",
+    "unlimitedStorage"
   ],
   "host_permissions": [
     "http://localhost:3001/*",

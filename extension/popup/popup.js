@@ -17,6 +17,39 @@ document.addEventListener('DOMContentLoaded', async () => {
   const debugToggleBtn = document.getElementById('debugToggleBtn');
   const debugLogs = document.getElementById('debugLogs');
   const clearLogsBtn = document.getElementById('clearLogsBtn');
+  const resumeUpload = document.getElementById('resumeUpload');
+  const resumeStatus = document.getElementById('resumeStatus');
+  const resumeNameSpan = document.getElementById('resumeName');
+
+  // Load saved resume state
+  chrome.storage.local.get(['resumeFileName'], (result) => {
+    if (result.resumeFileName) {
+      resumeNameSpan.textContent = result.resumeFileName;
+      resumeStatus.style.display = 'block';
+      logDebug(`Loaded saved resume info: ${result.resumeFileName}`);
+    }
+  });
+
+  resumeUpload.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    logDebug(`Reading file: ${file.name} (${file.size} bytes)`);
+    const reader = new FileReader();
+    reader.onload = function(evt) {
+      const base64Data = evt.target.result;
+      chrome.storage.local.set({ 
+        resumeData: base64Data,
+        resumeFileName: file.name,
+        resumeMime: file.type || 'application/pdf'
+      }, () => {
+        logDebug(`Saved ${file.name} to local storage!`);
+        resumeNameSpan.textContent = file.name;
+        resumeStatus.style.display = 'block';
+      });
+    };
+    reader.readAsDataURL(file);
+  });
 
   debugToggleBtn.addEventListener('click', () => {
     if (debugLogs.style.display === 'none') {

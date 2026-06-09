@@ -33,10 +33,60 @@ export default function CandidateProfile() {
       <div className="bg-white shadow px-4 py-5 sm:rounded-lg sm:p-6">
         <div className="grid grid-cols-6 gap-6">
           <div className="col-span-6 sm:col-span-3">
+            <label className="block text-sm font-medium text-gray-700">Full Name</label>
+            <input
+              type="text"
+              value={profile.user?.name || ''}
+              onChange={e => setProfile({...profile, user: {...profile.user, name: e.target.value}})}
+              className="mt-1 block w-full shadow-sm sm:text-sm focus:ring-indigo-500 focus:border-indigo-500 border-gray-300 rounded-md p-2 border"
+            />
+          </div>
+
+          <div className="col-span-6 sm:col-span-3">
+            <label className="block text-sm font-medium text-gray-700">Phone Number (include country code)</label>
+            <input
+              type="tel"
+              value={profile.phone || ''}
+              onChange={e => setProfile({...profile, phone: e.target.value})}
+              className="mt-1 block w-full shadow-sm sm:text-sm focus:ring-indigo-500 focus:border-indigo-500 border-gray-300 rounded-md p-2 border"
+            />
+          </div>
+
+          <div className="col-span-6 sm:col-span-3">
+            <label className="block text-sm font-medium text-gray-700">LinkedIn URL</label>
+            <input
+              type="url"
+              value={profile.linkedInUrl || ''}
+              onChange={e => setProfile({...profile, linkedInUrl: e.target.value})}
+              className="mt-1 block w-full shadow-sm sm:text-sm focus:ring-indigo-500 focus:border-indigo-500 border-gray-300 rounded-md p-2 border"
+            />
+          </div>
+
+          <div className="col-span-6 sm:col-span-3">
+            <label className="block text-sm font-medium text-gray-700">GitHub URL</label>
+            <input
+              type="url"
+              value={profile.githubUrl || ''}
+              onChange={e => setProfile({...profile, githubUrl: e.target.value})}
+              className="mt-1 block w-full shadow-sm sm:text-sm focus:ring-indigo-500 focus:border-indigo-500 border-gray-300 rounded-md p-2 border"
+            />
+          </div>
+
+          <div className="col-span-6 sm:col-span-3">
+            <label className="block text-sm font-medium text-gray-700">Portfolio / Website URL</label>
+            <input
+              type="url"
+              value={profile.portfolioUrl || ''}
+              onChange={e => setProfile({...profile, portfolioUrl: e.target.value})}
+              className="mt-1 block w-full shadow-sm sm:text-sm focus:ring-indigo-500 focus:border-indigo-500 border-gray-300 rounded-md p-2 border"
+            />
+          </div>
+
+          <div className="col-span-6 sm:col-span-3">
             <label className="block text-sm font-medium text-gray-700">Years of Experience</label>
             <input
               type="number"
-              value={profile.yearsOfExperience}
+              value={profile.yearsOfExperience || 0}
               onChange={e => setProfile({...profile, yearsOfExperience: parseInt(e.target.value)})}
               className="mt-1 block w-full shadow-sm sm:text-sm focus:ring-indigo-500 focus:border-indigo-500 border-gray-300 rounded-md p-2 border"
             />
