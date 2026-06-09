@@ -38,7 +38,10 @@ chrome.commands.onCommand.addListener(async (command) => {
       if (!res.ok) throw new Error(`HTTP error: ${res.status}`);
       const data = await res.json();
 
-      const alertMsg = data.applied ? `🚨 ${data.message} (Status: ${data.status})` : `✨ ${data.message}`;
+      let alertMsg;
+      if (data.applied) alertMsg = `🚨 ${data.message} (Status: ${data.status})`;
+      else if (data.inToApply) alertMsg = `📌 ${data.message}`;
+      else alertMsg = `✨ ${data.message}`;
 
       await chrome.scripting.executeScript({
         target: { tabId: tab.id },
@@ -58,15 +61,27 @@ async function evaluateJob(tabId, url) {
     if (!res.ok) return;
     const data = await res.json();
 
-    // Set Badge Color based on status
+    let toastPrefix = '';
+    let bgColor, textColor, borderColor;
+
     if (data.applied) {
-      chrome.action.setBadgeBackgroundColor({ tabId, color: '#DC2626' }); // Red
+      // Already applied — red badge & toast
+      chrome.action.setBadgeBackgroundColor({ tabId, color: '#DC2626' });
       chrome.action.setBadgeText({ tabId, text: 'OLD' });
+      toastPrefix = `🚨 ${data.message} (Status: ${data.status})`;
+      bgColor = '#fef2f2'; textColor = '#991b1b'; borderColor = '#fecaca';
+    } else if (data.inToApply) {
+      // Already queued to apply — amber badge & toast, do NOT re-scrape
+      chrome.action.setBadgeBackgroundColor({ tabId, color: '#D97706' });
+      chrome.action.setBadgeText({ tabId, text: 'APPLY' });
+      toastPrefix = `📌 ${data.message}`;
+      bgColor = '#fffbeb'; textColor = '#92400e'; borderColor = '#fcd34d';
     } else {
-      chrome.action.setBadgeBackgroundColor({ tabId, color: '#059669' }); // Green
+      // New position — green badge & toast, auto-scrape and save to "To Apply"
+      chrome.action.setBadgeBackgroundColor({ tabId, color: '#059669' });
       chrome.action.setBadgeText({ tabId, text: 'NEW' });
-      
-      // Auto-scrape and save the new position!
+      bgColor = '#ecfdf5'; textColor = '#065f46'; borderColor = '#a7f3d0';
+
       try {
         const formData = new FormData();
         formData.append('url', url);
@@ -74,10 +89,9 @@ async function evaluateJob(tabId, url) {
           method: 'POST',
           body: formData
         });
-        
+
         if (scrapeRes.ok) {
           const parsed = await scrapeRes.json();
-          // Verify it actually looks like a job posting
           if (parsed.companyName && parsed.jobTitle && parsed.jobTitle !== 'Unknown Title') {
             await fetch('https://vega-jobs.onrender.com/api/applications', {
               method: 'POST',
@@ -93,20 +107,16 @@ async function evaluateJob(tabId, url) {
                 dateApplied: new Date().toISOString()
               })
             });
-            // Update the toast message to indicate it was auto-saved
-            data.message = "✨ New Job! Auto-saved position.";
+            data.message = "✨ New Job! Saved to Positions to Apply.";
           }
         }
       } catch (scrapeErr) {
         console.error("Failed to auto-scrape new position:", scrapeErr);
       }
+      toastPrefix = data.message;
     }
 
-    // Inject floating toast into the webpage
-    const toastMsg = data.applied ? `🚨 ${data.message} (Status: ${data.status})` : data.message;
-    const bgColor = data.applied ? '#fef2f2' : '#ecfdf5';
-    const textColor = data.applied ? '#991b1b' : '#065f46';
-    const borderColor = data.applied ? '#fecaca' : '#a7f3d0';
+    const toastMsg = toastPrefix;
 
     await chrome.scripting.executeScript({
       target: { tabId },
