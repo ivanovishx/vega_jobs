@@ -127,6 +127,7 @@ export default function Applications() {
                   <tr>
                     <th className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">Company</th>
                     <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Role</th>
+                    <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">URL</th>
                     <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Status</th>
                     <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Match Score</th>
                     <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Next Action</th>
@@ -142,6 +143,15 @@ export default function Applications() {
                         {app.companyName}
                       </td>
                       <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{app.jobTitle}</td>
+                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                        {app.jobUrl ? (
+                          <a href={app.jobUrl} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:text-indigo-900 hover:underline">
+                            Open
+                          </a>
+                        ) : (
+                          '-'
+                        )}
+                      </td>
                       <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
                         <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
                           {app.status}
