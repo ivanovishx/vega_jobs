@@ -66,6 +66,8 @@ window.runVegaAutofill = function(profile) {
   selects.forEach(select => {
     const nameAtt = (select.getAttribute('name') || '').toLowerCase();
     const idAtt = (select.getAttribute('id') || '').toLowerCase();
+    
+    // Country logic
     if (nameAtt.includes('country') || idAtt.includes('country') || nameAtt.includes('location')) {
       for (const option of select.options) {
         const text = option.text.toLowerCase();
@@ -79,6 +81,41 @@ window.runVegaAutofill = function(profile) {
           break;
         }
       }
+    }
+
+    // Demographics logic
+    const selectLabelMatch = `${nameAtt} ${idAtt}`;
+    
+    // Helper to find and set best option
+    const matchAndSetOption = (targetValue) => {
+      if (!targetValue) return;
+      const targetText = targetValue.toLowerCase();
+      let bestOption = null;
+      
+      for (const option of select.options) {
+        const optionText = option.text.toLowerCase();
+        if (optionText.includes(targetText) || targetText.includes(optionText)) {
+          bestOption = option;
+          break;
+        }
+      }
+      
+      if (bestOption && select.value !== bestOption.value) {
+        select.value = bestOption.value;
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+        filledCount++;
+        select.style.backgroundColor = '#e0e7ff';
+      }
+    };
+
+    if (selectLabelMatch.includes('gender') || selectLabelMatch.includes('sex')) {
+      matchAndSetOption(profile.gender);
+    } else if (selectLabelMatch.includes('race') || selectLabelMatch.includes('ethnic')) {
+      matchAndSetOption(profile.race);
+    } else if (selectLabelMatch.includes('veteran')) {
+      matchAndSetOption(profile.veteranStatus);
+    } else if (selectLabelMatch.includes('disability') || selectLabelMatch.includes('handicap')) {
+      matchAndSetOption(profile.disabilityStatus);
     }
   });
 

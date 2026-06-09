@@ -112,7 +112,7 @@ export default function CandidateProfile() {
             />
           </div>
 
-          <div className="col-span-6">
+          <div class="col-span-6">
             <label className="block text-sm font-medium text-gray-700">Domain Experience (comma separated)</label>
             <input
               type="text"
@@ -120,6 +120,73 @@ export default function CandidateProfile() {
               onChange={e => setProfile({...profile, domainExperience: e.target.value.split(',').map((s: string) => s.trim())})}
               className="mt-1 block w-full shadow-sm sm:text-sm focus:ring-indigo-500 focus:border-indigo-500 border-gray-300 rounded-md p-2 border"
             />
+          </div>
+
+          <div className="col-span-6">
+            <h3 className="text-lg font-medium leading-6 text-gray-900 mt-6 mb-2 border-b pb-2">Equal Employment Opportunity (EEO)</h3>
+            <p className="text-sm text-gray-500 mb-4">This data will be used by the extension to autofill demographic forms.</p>
+          </div>
+
+          <div className="col-span-6 sm:col-span-3">
+            <label className="block text-sm font-medium text-gray-700">Gender</label>
+            <select
+              value={profile.gender || ''}
+              onChange={e => setProfile({...profile, gender: e.target.value})}
+              className="mt-1 block w-full shadow-sm sm:text-sm focus:ring-indigo-500 focus:border-indigo-500 border-gray-300 rounded-md p-2 border"
+            >
+              <option value="">Select...</option>
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+              <option value="Non-binary">Non-binary</option>
+              <option value="Decline to self-identify">Decline to self-identify</option>
+            </select>
+          </div>
+
+          <div className="col-span-6 sm:col-span-3">
+            <label className="block text-sm font-medium text-gray-700">Race / Ethnicity</label>
+            <select
+              value={profile.race || ''}
+              onChange={e => setProfile({...profile, race: e.target.value})}
+              className="mt-1 block w-full shadow-sm sm:text-sm focus:ring-indigo-500 focus:border-indigo-500 border-gray-300 rounded-md p-2 border"
+            >
+              <option value="">Select...</option>
+              <option value="Hispanic or Latino">Hispanic or Latino</option>
+              <option value="White (Not Hispanic or Latino)">White (Not Hispanic or Latino)</option>
+              <option value="Black or African American">Black or African American</option>
+              <option value="Asian">Asian</option>
+              <option value="Native Hawaiian or Other Pacific Islander">Native Hawaiian or Other Pacific Islander</option>
+              <option value="American Indian or Alaska Native">American Indian or Alaska Native</option>
+              <option value="Two or More Races">Two or More Races</option>
+              <option value="Decline to self-identify">Decline to self-identify</option>
+            </select>
+          </div>
+
+          <div className="col-span-6 sm:col-span-3">
+            <label className="block text-sm font-medium text-gray-700">Veteran Status</label>
+            <select
+              value={profile.veteranStatus || ''}
+              onChange={e => setProfile({...profile, veteranStatus: e.target.value})}
+              className="mt-1 block w-full shadow-sm sm:text-sm focus:ring-indigo-500 focus:border-indigo-500 border-gray-300 rounded-md p-2 border"
+            >
+              <option value="">Select...</option>
+              <option value="I am not a protected veteran">I am not a protected veteran</option>
+              <option value="I identify as one or more of the classifications of a protected veteran">I identify as one or more of the classifications of a protected veteran</option>
+              <option value="I don't wish to answer">I don't wish to answer</option>
+            </select>
+          </div>
+
+          <div className="col-span-6 sm:col-span-3">
+            <label className="block text-sm font-medium text-gray-700">Disability Status</label>
+            <select
+              value={profile.disabilityStatus || ''}
+              onChange={e => setProfile({...profile, disabilityStatus: e.target.value})}
+              className="mt-1 block w-full shadow-sm sm:text-sm focus:ring-indigo-500 focus:border-indigo-500 border-gray-300 rounded-md p-2 border"
+            >
+              <option value="">Select...</option>
+              <option value="Yes, I have a disability (or previously had a disability)">Yes, I have a disability</option>
+              <option value="No, I don't have a disability">No, I don't have a disability</option>
+              <option value="I don't wish to answer">I don't wish to answer</option>
+            </select>
           </div>
 
         </div>
