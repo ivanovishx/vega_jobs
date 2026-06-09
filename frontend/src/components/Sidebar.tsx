@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Home, Briefcase, FileSearch, User } from 'lucide-react';
+import { Home, Briefcase, FileSearch, User, Bookmark } from 'lucide-react';
 import clsx from 'clsx';
 
 export default function Sidebar() {
@@ -8,6 +8,7 @@ export default function Sidebar() {
   const links = [
     { name: 'Dashboard', path: '/', icon: Home },
     { name: 'Applications', path: '/applications', icon: Briefcase },
+    { name: 'Saved Positions', path: '/saved-jobs', icon: Bookmark },
     { name: 'Job Analyzer', path: '/analyzer', icon: FileSearch },
     { name: 'Profile', path: '/profile', icon: User },
   ];

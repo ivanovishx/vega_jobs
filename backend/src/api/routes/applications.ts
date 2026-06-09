@@ -18,7 +18,7 @@ router.get('/', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const { companyName, jobTitle, jobUrl, status, notes, dateApplied } = req.body;
+    const { companyName, jobTitle, jobUrl, status, notes, dateApplied, location, salaryRange, rawJobDescription } = req.body;
     if (!companyName || !jobTitle) {
       return res.status(400).json({ error: "companyName and jobTitle are required" });
     }
@@ -33,7 +33,10 @@ router.post('/', async (req, res) => {
       jobUrl,
       status: status || 'Applied',
       notes,
-      dateApplied
+      dateApplied,
+      location,
+      salaryRange,
+      rawJobDescription
     });
     
     res.json(result);

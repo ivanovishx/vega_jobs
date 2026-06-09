@@ -65,10 +65,45 @@ async function evaluateJob(tabId, url) {
     } else {
       chrome.action.setBadgeBackgroundColor({ tabId, color: '#059669' }); // Green
       chrome.action.setBadgeText({ tabId, text: 'NEW' });
+      
+      // Auto-scrape and save the new position!
+      try {
+        const formData = new FormData();
+        formData.append('url', url);
+        const scrapeRes = await fetch('https://vega-jobs.onrender.com/api/applications/autofill', {
+          method: 'POST',
+          body: formData
+        });
+        
+        if (scrapeRes.ok) {
+          const parsed = await scrapeRes.json();
+          // Verify it actually looks like a job posting
+          if (parsed.companyName && parsed.jobTitle && parsed.jobTitle !== 'Unknown Title') {
+            await fetch('https://vega-jobs.onrender.com/api/applications', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                companyName: parsed.companyName,
+                jobTitle: parsed.jobTitle,
+                jobUrl: url,
+                location: parsed.location,
+                salaryRange: parsed.salaryRange,
+                notes: parsed.notes,
+                status: 'Saved',
+                dateApplied: new Date().toISOString()
+              })
+            });
+            // Update the toast message to indicate it was auto-saved
+            data.message = "✨ New Job! Auto-saved position.";
+          }
+        }
+      } catch (scrapeErr) {
+        console.error("Failed to auto-scrape new position:", scrapeErr);
+      }
     }
 
     // Inject floating toast into the webpage
-    const toastMsg = data.applied ? `🚨 ${data.message} (Status: ${data.status})` : `✨ ${data.message}`;
+    const toastMsg = data.applied ? `🚨 ${data.message} (Status: ${data.status})` : data.message;
     const bgColor = data.applied ? '#fef2f2' : '#ecfdf5';
     const textColor = data.applied ? '#991b1b' : '#065f46';
     const borderColor = data.applied ? '#fecaca' : '#a7f3d0';

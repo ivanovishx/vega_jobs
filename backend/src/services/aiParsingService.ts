@@ -15,7 +15,26 @@ export const aiParsingService = {
       
       let companyName = '';
       let jobTitle = '';
+      let location = '';
+      let salaryRange = '';
       let notes = 'Parsed from URL.';
+
+      // Extract basic text from body for regex
+      const bodyText = $('body').text().replace(/\s+/g, ' ');
+
+      // Basic regex for salary (e.g. $100,000 - $150,000, $120k)
+      const salaryMatch = bodyText.match(/\$[0-9]{2,3}(?:,[0-9]{3}|k)(?:\s*(?:-|to)\s*\$[0-9]{2,3}(?:,[0-9]{3}|k))?/i);
+      if (salaryMatch) {
+        salaryRange = salaryMatch[0];
+      }
+
+      // Basic heuristic for location from meta tags
+      const metaLoc = $('meta[name="twitter:data2"]').attr('content') || 
+                      $('meta[property="og:locality"]').attr('content') ||
+                      $('span[class*="location"], div[class*="location"]').first().text().trim();
+      if (metaLoc && metaLoc.length < 50) {
+        location = metaLoc;
+      }
 
       // Try <title> first because it often contains the company name
       let pageTitle = $('title').text().trim();
@@ -54,7 +73,7 @@ export const aiParsingService = {
       if (!companyName) companyName = 'Unknown Company';
       if (!jobTitle) jobTitle = 'Unknown Title';
 
-      return { companyName, jobTitle, notes };
+      return { companyName, jobTitle, location, salaryRange, notes };
 
     } catch (err: any) {
       console.error("Error parsing URL via Cheerio:", err);

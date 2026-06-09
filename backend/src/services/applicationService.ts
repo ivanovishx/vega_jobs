@@ -70,7 +70,9 @@ export const applicationService = {
         matchScore: app.matchScore || undefined,
         nextAction: app.nextAction || undefined,
         nextActionDueDate: app.nextActionDueDate?.toISOString(),
-        jobUrl: app.job.url || undefined
+        jobUrl: app.job.url || undefined,
+        location: app.job.location || undefined,
+        salaryRange: app.job.salaryRange || undefined
       }))
     };
   },
@@ -172,6 +174,9 @@ export const applicationService = {
     status: string;
     notes?: string;
     dateApplied?: string;
+    location?: string;
+    salaryRange?: string;
+    rawJobDescription?: string;
   }) {
     let user = await prisma.user.findUnique({ where: { id: input.userId } });
     if (!user) {
@@ -210,6 +215,9 @@ export const applicationService = {
         companyId: company.id,
         title: input.jobTitle,
         url: input.jobUrl,
+        location: input.location,
+        salaryRange: input.salaryRange,
+        rawJobDescription: input.rawJobDescription
       }
     });
 
