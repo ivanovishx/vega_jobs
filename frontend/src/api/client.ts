@@ -31,6 +31,18 @@ export const fetchApplications = async () => {
   return res.data;
 };
 
+export const createApplication = async (data: { companyName: string; jobTitle: string; jobUrl?: string; status?: string; notes?: string; dateApplied?: string }) => {
+  const res = await api.post('applications', data);
+  return res.data;
+};
+
+export const autofillApplication = async (formData: FormData) => {
+  const res = await api.post('applications/autofill', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  });
+  return res.data;
+};
+
 export const updateApplicationStatus = async (appId: string, status: string) => {
   const res = await api.put(`applications/${appId}/status`, { status });
   return res.data;

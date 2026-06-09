@@ -1,5 +1,9 @@
 import { Router } from 'express';
 import { applicationService } from '../../services/applicationService';
+import { aiParsingService } from '../../services/aiParsingService';
+import multer from 'multer';
+
+const upload = multer({ storage: multer.memoryStorage() });
 
 const router = Router();
 
@@ -7,6 +11,61 @@ router.get('/', async (req, res) => {
   try {
     const result = await applicationService.listActiveApplications(req.query as any);
     res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/', async (req, res) => {
+  try {
+    const { companyName, jobTitle, jobUrl, status, notes, dateApplied } = req.body;
+    if (!companyName || !jobTitle) {
+      return res.status(400).json({ error: "companyName and jobTitle are required" });
+    }
+    
+    // For MVP, we use the mock user ID as in other places
+    const userId = "mock-user-id";
+    
+    const result = await applicationService.createApplication({
+      userId,
+      companyName,
+      jobTitle,
+      jobUrl,
+      status: status || 'Applied',
+      notes,
+      dateApplied
+    });
+    
+    res.json(result);
+  } catch (err: any) {
+    if (err.message && err.message.includes('DUPLICATE_URL')) {
+      return res.status(400).json({ error: err.message.replace('DUPLICATE_URL: ', '') });
+    }
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/autofill', upload.single('screenshot'), async (req, res) => {
+  try {
+    const url = req.body.url;
+    const file = req.file;
+
+    if (!url && !file) {
+      return res.status(400).json({ error: "Must provide either a 'url' field or upload a 'screenshot' file." });
+    }
+
+    let extractedData;
+
+    if (file) {
+      // Parse from Image
+      const base64Data = file.buffer.toString('base64');
+      extractedData = await aiParsingService.parseFromImage(file.mimetype, base64Data);
+    } else {
+      // Parse from URL
+      extractedData = await aiParsingService.parseFromUrl(url);
+    }
+
+    res.json(extractedData);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

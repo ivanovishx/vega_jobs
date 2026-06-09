@@ -69,7 +69,8 @@ export const applicationService = {
         status: app.status,
         matchScore: app.matchScore || undefined,
         nextAction: app.nextAction || undefined,
-        nextActionDueDate: app.nextActionDueDate?.toISOString()
+        nextActionDueDate: app.nextActionDueDate?.toISOString(),
+        jobUrl: app.job.url || undefined
       }))
     };
   },
@@ -160,6 +161,73 @@ export const applicationService = {
       applicationsNeedingFollowUp: 2, // mock
       pipelineHealth,
       recommendations: ["Apply to more roles matching your top skills."]
+    };
+  },
+
+  async createApplication(input: {
+    userId: string;
+    companyName: string;
+    jobTitle: string;
+    jobUrl?: string;
+    status: string;
+    notes?: string;
+    dateApplied?: string;
+  }) {
+    let user = await prisma.user.findUnique({ where: { id: input.userId } });
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          id: input.userId,
+          email: `${input.userId}@example.com`,
+          name: 'Mock User'
+        }
+      });
+    }
+
+    // Duplicate Check
+    if (input.jobUrl) {
+      const existingJob = await prisma.job.findFirst({
+        where: { url: input.jobUrl, userId: input.userId }
+      });
+      if (existingJob) {
+        const existingApp = await prisma.application.findFirst({
+          where: { jobId: existingJob.id, userId: input.userId }
+        });
+        if (existingApp && existingApp.status !== 'Rejected' && existingApp.status !== 'Withdrawn') {
+          throw new Error("DUPLICATE_URL: You have already applied to this job URL.");
+        }
+      }
+    }
+
+    let company = await prisma.company.findUnique({ where: { name: input.companyName } });
+    if (!company) {
+      company = await prisma.company.create({ data: { name: input.companyName } });
+    }
+
+    const job = await prisma.job.create({
+      data: {
+        userId: input.userId,
+        companyId: company.id,
+        title: input.jobTitle,
+        url: input.jobUrl,
+      }
+    });
+
+    const application = await prisma.application.create({
+      data: {
+        userId: input.userId,
+        jobId: job.id,
+        companyId: company.id,
+        status: input.status || 'Applied',
+        notes: input.notes,
+        dateApplied: input.dateApplied ? new Date(input.dateApplied) : new Date()
+      }
+    });
+
+    return {
+      applicationId: application.id,
+      created: true,
+      message: "Application added successfully."
     };
   }
 };
