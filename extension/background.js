@@ -11,13 +11,13 @@ chrome.commands.onCommand.addListener(async (command) => {
 
       // Inject the autofill script file
       await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
+        target: { tabId: tab.id, allFrames: true },
         files: ['content/autofill.js']
       });
 
       // Pass the fetched profile to the script
       await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
+        target: { tabId: tab.id, allFrames: true },
         func: (p) => {
           if (window.runVegaAutofill) {
             window.runVegaAutofill(p);

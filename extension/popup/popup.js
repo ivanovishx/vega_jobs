@@ -145,7 +145,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       
       await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
+        target: { tabId: tab.id, allFrames: true },
         files: ['content/autofill.js']
       });
 
@@ -153,7 +153,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       // Pass the data to the injected script by executing a small function that calls a global method defined in autofill.js
       await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
+        target: { tabId: tab.id, allFrames: true },
         func: (profile) => {
           if (window.runVegaAutofill) {
             window.runVegaAutofill(profile);

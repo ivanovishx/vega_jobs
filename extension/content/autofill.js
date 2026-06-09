@@ -24,39 +24,80 @@ window.runVegaAutofill = function(profile) {
     website: [profile.portfolioUrl]
   };
 
+  // Keyword order matters: more specific keys first, generic 'name' last.
   const keywords = {
-    first_name: ['first_name', 'firstname', 'first-name', 'fname'],
-    last_name: ['last_name', 'lastname', 'last-name', 'lname'],
-    name: ['name', 'full_name', 'fullname'],
-    email: ['email'],
+    first_name: ['first_name', 'firstname', 'first-name', 'fname', 'first name'],
+    last_name: ['last_name', 'lastname', 'last-name', 'lname', 'last name'],
+    email: ['email', 'e-mail'],
     phone: ['phone', 'tel', 'mobile'],
-    linkedin: ['linkedin'],
-    github: ['github'],
-    portfolio: ['portfolio', 'website', 'url']
+    linkedin: ['linkedin', 'linked-in', 'linked in'],
+    github: ['github', 'git hub'],
+    portfolio: ['portfolio', 'website', 'personal site', 'url'],
+    name: ['name', 'full_name', 'fullname', 'full name']
+  };
+
+  // Collect label/aria text associated with an input (Greenhouse uses generic
+  // ids like question_12345, so the field name only exists in the <label>).
+  const getLabelText = (el) => {
+    let text = '';
+    try {
+      if (el.id) {
+        const lbl = document.querySelector(`label[for="${CSS.escape(el.id)}"]`);
+        if (lbl) text += ' ' + lbl.textContent;
+      }
+      const wrap = el.closest('label');
+      if (wrap) text += ' ' + wrap.textContent;
+      const aria = el.getAttribute('aria-label');
+      if (aria) text += ' ' + aria;
+      const labelledBy = el.getAttribute('aria-labelledby');
+      if (labelledBy) {
+        labelledBy.split(/\s+/).forEach(refId => {
+          const ref = document.getElementById(refId);
+          if (ref) text += ' ' + ref.textContent;
+        });
+      }
+    } catch (e) { /* ignore */ }
+    return text.toLowerCase();
+  };
+
+  // React-controlled inputs (Greenhouse) ignore plain .value assignment;
+  // use the native setter so the framework registers the change.
+  const setNativeValue = (input, value) => {
+    const proto = input instanceof HTMLTextAreaElement
+      ? HTMLTextAreaElement.prototype
+      : HTMLInputElement.prototype;
+    const setter = Object.getOwnPropertyDescriptor(proto, 'value');
+    if (setter && setter.set) {
+      setter.set.call(input, value);
+    } else {
+      input.value = value;
+    }
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    input.dispatchEvent(new Event('blur', { bubbles: true }));
   };
 
   let filledCount = 0;
 
   // 1. Fill Text Inputs
-  const inputs = document.querySelectorAll('input[type="text"], input[type="email"], input[type="tel"], input[type="url"]');
+  const inputs = document.querySelectorAll('input[type="text"], input[type="email"], input[type="tel"], input[type="url"], input:not([type])');
   inputs.forEach(input => {
     const nameAtt = (input.getAttribute('name') || '').toLowerCase();
     const idAtt = (input.getAttribute('id') || '').toLowerCase();
     const placeholder = (input.getAttribute('placeholder') || '').toLowerCase();
-    const textToMatch = `${nameAtt} ${idAtt} ${placeholder}`;
+    const labelText = getLabelText(input);
+    const textToMatch = `${nameAtt} ${idAtt} ${placeholder} ${labelText}`;
 
     for (const [fieldKey, fieldKeywords] of Object.entries(keywords)) {
       if (fieldKeywords.some(kw => textToMatch.includes(kw))) {
         const values = fieldMapping[fieldKey];
         const valToSet = values && values[0];
         if (valToSet && !input.value) {
-          input.value = valToSet;
-          input.dispatchEvent(new Event('input', { bubbles: true }));
-          input.dispatchEvent(new Event('change', { bubbles: true }));
+          setNativeValue(input, valToSet);
           filledCount++;
           input.style.backgroundColor = '#e0e7ff';
-          break;
         }
+        break; // stop at first keyword match even if no value, to avoid wrong fills
       }
     }
   });
