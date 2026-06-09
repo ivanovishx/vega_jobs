@@ -10,9 +10,18 @@ function logDebug(msg) {
   }
 }
 
+window.onerror = function(message, source, lineno, colno, error) {
+  const errorEl = document.getElementById('errorMsg');
+  if (errorEl) {
+    errorEl.textContent = `JS Error: ${message} at line ${lineno}`;
+  }
+  return false;
+};
+
 document.addEventListener('DOMContentLoaded', async () => {
-  const statusEl = document.getElementById('status');
-  const btn = document.getElementById('autofillBtn');
+  try {
+    const statusEl = document.getElementById('status');
+    const btn = document.getElementById('autofillBtn');
   const errorEl = document.getElementById('errorMsg');
   const debugToggleBtn = document.getElementById('debugToggleBtn');
   const debugLogs = document.getElementById('debugLogs');
@@ -22,34 +31,38 @@ document.addEventListener('DOMContentLoaded', async () => {
   const resumeNameSpan = document.getElementById('resumeName');
 
   // Load saved resume state
-  chrome.storage.local.get(['resumeFileName'], (result) => {
-    if (result.resumeFileName) {
-      resumeNameSpan.textContent = result.resumeFileName;
-      resumeStatus.style.display = 'block';
-      logDebug(`Loaded saved resume info: ${result.resumeFileName}`);
-    }
-  });
-
-  resumeUpload.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    logDebug(`Reading file: ${file.name} (${file.size} bytes)`);
-    const reader = new FileReader();
-    reader.onload = function(evt) {
-      const base64Data = evt.target.result;
-      chrome.storage.local.set({ 
-        resumeData: base64Data,
-        resumeFileName: file.name,
-        resumeMime: file.type || 'application/pdf'
-      }, () => {
-        logDebug(`Saved ${file.name} to local storage!`);
-        resumeNameSpan.textContent = file.name;
+  if (chrome.storage && chrome.storage.local) {
+    chrome.storage.local.get(['resumeFileName'], (result) => {
+      if (result.resumeFileName) {
+        resumeNameSpan.textContent = result.resumeFileName;
         resumeStatus.style.display = 'block';
-      });
-    };
-    reader.readAsDataURL(file);
-  });
+        logDebug(`Loaded saved resume info: ${result.resumeFileName}`);
+      }
+    });
+
+    resumeUpload.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      logDebug(`Reading file: ${file.name} (${file.size} bytes)`);
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        const base64Data = evt.target.result;
+        chrome.storage.local.set({ 
+          resumeData: base64Data,
+          resumeFileName: file.name,
+          resumeMime: file.type || 'application/pdf'
+        }, () => {
+          logDebug(`Saved ${file.name} to local storage!`);
+          resumeNameSpan.textContent = file.name;
+          resumeStatus.style.display = 'block';
+        });
+      };
+      reader.readAsDataURL(file);
+    });
+  } else {
+    logDebug("Warning: chrome.storage is undefined. You may need to remove and re-add the extension for new permissions to take effect.");
+  }
 
   debugToggleBtn.addEventListener('click', () => {
     if (debugLogs.style.display === 'none') {
@@ -147,4 +160,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       btn.disabled = false;
     }
   });
+  } catch (globalErr) {
+    const errorEl = document.getElementById('errorMsg');
+    if (errorEl) {
+      errorEl.textContent = `Init Error: ${globalErr.message}`;
+    }
+    console.error("Initialization Error:", globalErr);
+  }
 });
