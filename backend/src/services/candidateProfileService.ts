@@ -33,17 +33,17 @@ export const candidateProfileService = {
 
     const updateQuery: any = { ...profileData };
 
-    if (user && user.name) {
-      updateQuery.user = {
-        update: {
-          name: user.name
-        }
-      };
+    if (user && (user.name || user.email)) {
+      const userUpdate: any = {};
+      if (user.name) userUpdate.name = user.name;
+      if (user.email) userUpdate.email = user.email;
+      updateQuery.user = { update: userUpdate };
     }
 
     return prisma.candidateProfile.update({
       where: { id },
-      data: updateQuery
+      data: updateQuery,
+      include: { user: true }
     });
   }
 };

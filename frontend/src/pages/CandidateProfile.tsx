@@ -43,6 +43,16 @@ export default function CandidateProfile() {
           </div>
 
           <div className="col-span-6 sm:col-span-3">
+            <label className="block text-sm font-medium text-gray-700">Email</label>
+            <input
+              type="email"
+              value={profile.user?.email || ''}
+              onChange={e => setProfile({...profile, user: {...profile.user, email: e.target.value}})}
+              className="mt-1 block w-full shadow-sm sm:text-sm focus:ring-indigo-500 focus:border-indigo-500 border-gray-300 rounded-md p-2 border"
+            />
+          </div>
+
+          <div className="col-span-6 sm:col-span-3">
             <label className="block text-sm font-medium text-gray-700">Phone Number (include country code)</label>
             <input
               type="tel"
@@ -112,7 +122,7 @@ export default function CandidateProfile() {
             />
           </div>
 
-          <div class="col-span-6">
+          <div className="col-span-6">
             <label className="block text-sm font-medium text-gray-700">Domain Experience (comma separated)</label>
             <input
               type="text"

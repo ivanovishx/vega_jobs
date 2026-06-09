@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { fetchApplications, createApplication, autofillApplication } from '../api/client';
 import { Link } from 'react-router-dom';
-import clsx from 'clsx';
 
 export default function SavedJobs() {
   const [applications, setApplications] = useState<any[]>([]);
