@@ -111,6 +111,15 @@ router.put('/:id/status', async (req, res) => {
   }
 });
 
+router.delete('/:id', async (req, res) => {
+  try {
+    const result = await applicationService.deleteApplication(req.params.id);
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.post('/:id/events', async (req, res) => {
   try {
     const { eventType, note, eventDate, contactId } = req.body;
