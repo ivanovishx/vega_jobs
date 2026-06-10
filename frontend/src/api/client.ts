@@ -48,6 +48,11 @@ export const updateApplicationStatus = async (appId: string, status: string) => 
   return res.data;
 };
 
+export const deleteApplication = async (appId: string) => {
+  const res = await api.delete(`applications/${appId}`);
+  return res.data;
+};
+
 export const analyzeJobDescription = async (data: any) => {
   const res = await api.post('jd/analyze', data);
   return res.data;

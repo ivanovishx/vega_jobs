@@ -87,6 +87,11 @@ export const applicationService = {
     };
   },
 
+  async deleteApplication(applicationId: string) {
+    await prisma.application.delete({ where: { id: applicationId } });
+    return { applicationId, deleted: true };
+  },
+
   async addApplicationEvent(input: { applicationId: string; eventType: string; note: string; eventDate?: string; contactId?: string }) {
     const event = await prisma.applicationEvent.create({
       data: {
