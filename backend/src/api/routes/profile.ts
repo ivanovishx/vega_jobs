@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { candidateProfileService } from '../../services/candidateProfileService';
 
 import multer from 'multer';
-import pdfParse from 'pdf-parse';
+const pdfParse = require('pdf-parse');
 
 const router = Router();
 const MOCK_USER_ID = "mock-user-id";
@@ -48,7 +48,7 @@ router.post('/resume-pdf', upload.single('resume'), async (req, res) => {
     // 1. Lowercase, replace non-letters with spaces
     const cleanText = text.toLowerCase().replace(/[^a-z0-9+#]/g, ' ');
     // 2. Split by spaces, filter short/stop words
-    const words = cleanText.split(/\s+/).filter(w => w.length > 2 && !STOP_WORDS.has(w));
+    const words = cleanText.split(/\s+/).filter((w: string) => w.length > 2 && !STOP_WORDS.has(w));
     // 3. Deduplicate
     const uniqueKeywords = Array.from(new Set(words));
 
