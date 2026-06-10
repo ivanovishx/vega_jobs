@@ -116,6 +116,7 @@ model Application {
   companyId         String?
   company           Company?           @relation(fields: [companyId], references: [id])
   status            String // To Apply, Applied, Recruiter Screen, Hiring Manager Screen, Technical Interview, Onsite, Offer, Rejected, Withdrawn
+  category          String? // Job, Careers, Company (URL classification for auto-tracked entries)
   dateSaved         DateTime           @default(now())
   dateApplied       DateTime?
   nextAction        String?

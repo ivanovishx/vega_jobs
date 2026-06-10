@@ -2,9 +2,19 @@ import { useEffect, useState } from 'react';
 import { fetchApplications, createApplication, autofillApplication } from '../api/client';
 import { Link } from 'react-router-dom';
 
+const CATEGORY_OPTIONS = ['Job', 'Careers', 'Company'] as const;
+type CategoryFilter = 'All' | typeof CATEGORY_OPTIONS[number] | 'Uncategorized';
+
+const CATEGORY_BADGE_CLASSES: Record<string, string> = {
+  Job: 'bg-emerald-100 text-emerald-800 ring-emerald-600/20',
+  Careers: 'bg-blue-100 text-blue-800 ring-blue-600/20',
+  Company: 'bg-gray-100 text-gray-700 ring-gray-500/20',
+};
+
 export default function SavedJobs() {
   const [applications, setApplications] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('All');
   const [scrapeUrl, setScrapeUrl] = useState('');
   const [isScraping, setIsScraping] = useState(false);
 
@@ -60,6 +70,10 @@ export default function SavedJobs() {
   };
 
   const filteredApplications = applications.filter(app => {
+    if (categoryFilter !== 'All') {
+      const cat = app.category || 'Uncategorized';
+      if (cat !== categoryFilter) return false;
+    }
     if (!searchQuery) return true;
     const query = searchQuery.toLowerCase();
     return (
@@ -103,15 +117,27 @@ export default function SavedJobs() {
         </form>
       </div>
 
-      {/* Search Bar */}
-      <div className="mt-4">
-        <input 
-          type="text" 
-          placeholder="Search by company, title, location, or salary..." 
+      {/* Search + Category Filter */}
+      <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:space-x-3 space-y-2 sm:space-y-0">
+        <input
+          type="text"
+          placeholder="Search by company, title, location, or salary..."
           className="block w-full max-w-md rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
         />
+        <select
+          className="block rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+          value={categoryFilter}
+          onChange={e => setCategoryFilter(e.target.value as CategoryFilter)}
+          aria-label="Filter by category"
+        >
+          <option value="All">All categories</option>
+          {CATEGORY_OPTIONS.map(cat => (
+            <option key={cat} value={cat}>{cat}</option>
+          ))}
+          <option value="Uncategorized">Uncategorized</option>
+        </select>
       </div>
 
       <div className="mt-8 flex flex-col">
@@ -123,6 +149,7 @@ export default function SavedJobs() {
                   <tr>
                     <th className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">Company</th>
                     <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Title</th>
+                    <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Category</th>
                     <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">City / Location</th>
                     <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Payrate</th>
                     <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Link</th>
@@ -138,6 +165,15 @@ export default function SavedJobs() {
                         {app.companyName}
                       </td>
                       <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{app.jobTitle}</td>
+                      <td className="whitespace-nowrap px-3 py-4 text-sm">
+                        {app.category ? (
+                          <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${CATEGORY_BADGE_CLASSES[app.category] || 'bg-gray-100 text-gray-700 ring-gray-500/20'}`}>
+                            {app.category}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400">—</span>
+                        )}
+                      </td>
                       <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{app.location || '-'}</td>
                       <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{app.salaryRange || '-'}</td>
                       <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
@@ -158,7 +194,7 @@ export default function SavedJobs() {
                   ))}
                   {filteredApplications.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="py-4 text-center text-sm text-gray-500">
+                      <td colSpan={7} className="py-4 text-center text-sm text-gray-500">
                         No positions to apply found.
                       </td>
                     </tr>
