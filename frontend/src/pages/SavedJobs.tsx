@@ -131,10 +131,10 @@ export default function SavedJobs() {
       {/* Manual URL Scrape Section */}
       <div className="bg-white p-4 shadow rounded-lg mb-6 border border-gray-200">
         <h3 className="text-sm font-medium text-gray-900 mb-2">Manually Add a Position</h3>
-        <form onSubmit={handleManualScrape} className="flex space-x-3">
-          <input 
-            type="url" 
-            placeholder="https://company.com/job/123..." 
+        <form onSubmit={handleManualScrape} className="flex flex-col sm:flex-row sm:space-x-3 space-y-2 sm:space-y-0">
+          <input
+            type="url"
+            placeholder="https://company.com/job/123..."
             className="block w-full max-w-lg rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
             value={scrapeUrl}
             onChange={e => setScrapeUrl(e.target.value)}
@@ -143,7 +143,7 @@ export default function SavedJobs() {
           <button
             type="submit"
             disabled={isScraping}
-            className="inline-flex items-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50"
+            className="inline-flex justify-center items-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50"
           >
             {isScraping ? 'Scanning...' : 'Extract & Save'}
           </button>
