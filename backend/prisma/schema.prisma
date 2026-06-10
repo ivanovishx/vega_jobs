@@ -36,6 +36,7 @@ model CandidateProfile {
   githubUrl         String?
   portfolioUrl      String?
   resumeText        String?  @db.Text
+  resumeKeywords    String[] @default([])
   gender            String?
   race              String?
   veteranStatus     String?

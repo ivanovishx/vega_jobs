@@ -21,6 +21,18 @@ export const updateProfile = async (data: any) => {
   return res.data;
 };
 
+export const uploadResumePdf = async (formData: FormData) => {
+  const res = await api.post('profile/resume-pdf', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  });
+  return res.data;
+};
+
+export const updateProfileKeywords = async (keywords: string[]) => {
+  const res = await api.put('profile/keywords', { keywords });
+  return res.data;
+};
+
 export const fetchDashboardSummary = async (profileId: string) => {
   const res = await api.get(`applications/summary?profileId=${profileId}`);
   return res.data;

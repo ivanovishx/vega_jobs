@@ -34,7 +34,22 @@ chrome.commands.onCommand.addListener(async (command) => {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (!tab || !tab.url) return;
 
-      const res = await fetch(`https://vega-jobs.onrender.com/api/browser-extension/evaluate-job?url=${encodeURIComponent(tab.url)}`);
+      let pageText = '';
+      try {
+        const results = await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: () => document.body.innerText
+        });
+        if (results && results[0]) pageText = results[0].result;
+      } catch (e) {
+        console.warn(e);
+      }
+
+      const res = await fetch('https://vega-jobs.onrender.com/api/browser-extension/evaluate-job', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: tab.url, text: pageText })
+      });
       if (!res.ok) throw new Error(`HTTP error: ${res.status}`);
       const data = await res.json();
 
@@ -57,7 +72,24 @@ chrome.commands.onCommand.addListener(async (command) => {
 // Helper to evaluate a job silently
 async function evaluateJob(tabId, url) {
   try {
-    const res = await fetch(`https://vega-jobs.onrender.com/api/browser-extension/evaluate-job?url=${encodeURIComponent(url)}`);
+    let pageText = '';
+    try {
+      const results = await chrome.scripting.executeScript({
+        target: { tabId },
+        func: () => document.body.innerText
+      });
+      if (results && results[0]) {
+        pageText = results[0].result;
+      }
+    } catch (e) {
+      console.warn("Could not extract page text:", e);
+    }
+
+    const res = await fetch('https://vega-jobs.onrender.com/api/browser-extension/evaluate-job', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, text: pageText })
+    });
     if (!res.ok) return;
     const data = await res.json();
 

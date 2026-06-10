@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
-import { fetchProfile, updateProfile } from '../api/client';
+import { fetchProfile, updateProfile, uploadResumePdf, updateProfileKeywords } from '../api/client';
 
 export default function CandidateProfile() {
   const [profile, setProfile] = useState<any>(null);
   const [saving, setSaving] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [newKeyword, setNewKeyword] = useState('');
 
   useEffect(() => {
     fetchProfile().then(setProfile).catch(console.error);
@@ -19,6 +21,58 @@ export default function CandidateProfile() {
       alert('Failed to save.');
     }
     setSaving(false);
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    const file = e.target.files[0];
+    if (file.type !== 'application/pdf') {
+      return alert('Please upload a valid PDF file.');
+    }
+
+    setIsUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('resume', file);
+      const updatedProfile = await uploadResumePdf(formData);
+      setProfile(updatedProfile);
+      alert('Resume parsed and keywords extracted successfully!');
+    } catch (err) {
+      console.error(err);
+      alert('Failed to upload and parse resume.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleAddKeyword = async () => {
+    if (!newKeyword.trim()) return;
+    const keyword = newKeyword.trim().toLowerCase();
+    if (profile.resumeKeywords?.includes(keyword)) {
+      setNewKeyword('');
+      return;
+    }
+    
+    const newKeywords = [...(profile.resumeKeywords || []), keyword];
+    try {
+      const updated = await updateProfileKeywords(newKeywords);
+      setProfile(updated);
+      setNewKeyword('');
+    } catch (err) {
+      console.error(err);
+      alert('Failed to add keyword.');
+    }
+  };
+
+  const handleDeleteKeyword = async (keywordToRemove: string) => {
+    const newKeywords = profile.resumeKeywords.filter((k: string) => k !== keywordToRemove);
+    try {
+      const updated = await updateProfileKeywords(newKeywords);
+      setProfile(updated);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to delete keyword.');
+    }
   };
 
   if (!profile) return <div>Loading...</div>;
@@ -130,6 +184,66 @@ export default function CandidateProfile() {
               onChange={e => setProfile({...profile, domainExperience: e.target.value.split(',').map((s: string) => s.trim())})}
               className="mt-1 block w-full shadow-sm sm:text-sm focus:ring-indigo-500 focus:border-indigo-500 border-gray-300 rounded-md p-2 border"
             />
+          </div>
+
+          <div className="col-span-6">
+            <h3 className="text-lg font-medium leading-6 text-gray-900 mt-6 mb-2 border-b pb-2">Resume Parsing & Keywords</h3>
+            <p className="text-sm text-gray-500 mb-4">Upload your PDF resume to automatically extract keywords, or manage them manually. These keywords are used by the Chrome Extension to calculate a Match Score for new jobs.</p>
+            
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Upload Resume (PDF)</label>
+              <input 
+                type="file" 
+                accept=".pdf"
+                onChange={handleFileUpload}
+                disabled={isUploading}
+                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 disabled:opacity-50"
+              />
+              {isUploading && <span className="text-sm text-indigo-600 mt-1 inline-block">Uploading and parsing...</span>}
+            </div>
+
+            <div className="mb-2">
+              <label className="block text-sm font-medium text-gray-700">Extracted Keywords</label>
+              <div className="flex flex-wrap gap-2 mt-2">
+                {profile.resumeKeywords && profile.resumeKeywords.length > 0 ? (
+                  profile.resumeKeywords.map((kw: string) => (
+                    <span key={kw} className="inline-flex items-center rounded-full bg-indigo-100 px-2.5 py-0.5 text-sm font-medium text-indigo-800">
+                      {kw}
+                      <button 
+                        type="button" 
+                        onClick={() => handleDeleteKeyword(kw)}
+                        className="ml-1.5 inline-flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full text-indigo-400 hover:bg-indigo-200 hover:text-indigo-500 focus:bg-indigo-500 focus:text-white focus:outline-none"
+                      >
+                        <span className="sr-only">Remove {kw}</span>
+                        <svg className="h-2 w-2" stroke="currentColor" fill="none" viewBox="0 0 8 8">
+                          <path strokeLinecap="round" strokeWidth="1.5" d="M1 1l6 6m0-6L1 7" />
+                        </svg>
+                      </button>
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-sm text-gray-400">No keywords extracted yet.</span>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 mt-3">
+              <input 
+                type="text" 
+                placeholder="Add a keyword manually..." 
+                value={newKeyword}
+                onChange={e => setNewKeyword(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' ? (e.preventDefault(), handleAddKeyword()) : null}
+                className="block w-full max-w-xs shadow-sm sm:text-sm focus:ring-indigo-500 focus:border-indigo-500 border-gray-300 rounded-md p-2 border"
+              />
+              <button 
+                type="button" 
+                onClick={handleAddKeyword}
+                className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-gray-600 hover:bg-gray-700"
+              >
+                Add
+              </button>
+            </div>
           </div>
 
           <div className="col-span-6">

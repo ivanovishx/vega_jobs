@@ -49,13 +49,29 @@ router.post('/update-application', async (req, res) => {
   }
 });
 
-router.get('/evaluate-job', async (req, res) => {
+import { candidateProfileService } from '../../services/candidateProfileService';
+
+router.post('/evaluate-job', async (req, res) => {
   try {
-    const { url } = req.query;
+    const { url, text } = req.body;
     if (!url) return res.status(400).json({ error: 'Missing URL parameter' });
 
     const classification = classifyUrl(url as string);
     const inferredCompany = inferCompanyNameFromUrl(url as string);
+
+    // Get candidate profile to calculate match score
+    const profile = await candidateProfileService.getCandidateProfileByUserId(MOCK_USER_ID);
+    let matchScoreStr = '';
+    if (profile && profile.resumeKeywords && profile.resumeKeywords.length > 0 && text) {
+      const pageText = text.toLowerCase();
+      let matches = 0;
+      profile.resumeKeywords.forEach(kw => {
+        // very simple bag of words match
+        if (pageText.includes(kw)) matches++;
+      });
+      const score = Math.round((matches / profile.resumeKeywords.length) * 100);
+      matchScoreStr = ` (Match Score: ${score}%)`;
+    }
 
     // Query Applications directly via the Job join so we consider ALL Jobs at this
     // URL, not just the first one. Avoids the orphan-Job edge case that caused
@@ -77,7 +93,7 @@ router.get('/evaluate-job', async (req, res) => {
         normalizedUrl: classification.normalizedUrl,
         homepageUrl: classification.homepageUrl,
         inferredCompany,
-        message: "New entry! No records found."
+        message: "New entry! No records found." + matchScoreStr
       });
     }
 
@@ -90,7 +106,7 @@ router.get('/evaluate-job', async (req, res) => {
         category: app.category || classification.category,
         normalizedUrl: classification.normalizedUrl,
         homepageUrl: classification.homepageUrl,
-        message: `Already in your "Positions to Apply" — ${companyLabel}: ${app.job.title}`,
+        message: `Already in your "Positions to Apply" — ${companyLabel}: ${app.job.title}` + matchScoreStr,
         status: app.status,
         applicationId: app.id,
         dateSaved: app.dateSaved
@@ -103,7 +119,7 @@ router.get('/evaluate-job', async (req, res) => {
       category: app.category || classification.category,
       normalizedUrl: classification.normalizedUrl,
       homepageUrl: classification.homepageUrl,
-      message: `You already applied to ${companyLabel} for the ${app.job.title} role!`,
+      message: `You already applied to ${companyLabel} for the ${app.job.title} role!` + matchScoreStr,
       status: app.status,
       applicationId: app.id,
       dateSaved: app.dateSaved
