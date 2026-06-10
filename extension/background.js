@@ -212,13 +212,35 @@ async function evaluateJob(tabId, url) {
   }
 }
 
-// Listen for tab updates (e.g. navigation)
+// Per-tab in-flight guard: tabs.onUpdated can fire multiple 'complete' events
+// for the same URL (frames, SPA route changes, redirects). Without this guard,
+// concurrent evaluations race past the dedup check and create duplicate rows.
+const inFlightEvals = new Set();
+const recentlyEvaluated = new Map(); // tabId -> { url, ts }
+const RECENT_TTL_MS = 30_000;
+
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.status === 'complete' && tab.url && tab.url.startsWith('http')) {
-    chrome.storage.local.get(['autoEvaluate'], (result) => {
-      if (result.autoEvaluate) {
-        evaluateJob(tabId, tab.url);
-      }
-    });
-  }
+  if (changeInfo.status !== 'complete' || !tab.url || !tab.url.startsWith('http')) return;
+
+  chrome.storage.local.get(['autoEvaluate'], async (result) => {
+    if (!result.autoEvaluate) return;
+
+    const key = `${tabId}|${tab.url}`;
+    if (inFlightEvals.has(key)) return;
+
+    const recent = recentlyEvaluated.get(tabId);
+    if (recent && recent.url === tab.url && Date.now() - recent.ts < RECENT_TTL_MS) return;
+
+    inFlightEvals.add(key);
+    try {
+      await evaluateJob(tabId, tab.url);
+      recentlyEvaluated.set(tabId, { url: tab.url, ts: Date.now() });
+    } finally {
+      inFlightEvals.delete(key);
+    }
+  });
+});
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  recentlyEvaluated.delete(tabId);
 });
