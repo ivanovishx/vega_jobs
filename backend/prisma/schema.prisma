@@ -82,6 +82,8 @@ model Job {
   updatedAt              DateTime                @updatedAt
   applications           Application[]
   jobDescriptionAnalysis JobDescriptionAnalysis?
+
+  @@unique([userId, url], map: "Job_userId_url_key")
 }
 
 model JobDescriptionAnalysis {

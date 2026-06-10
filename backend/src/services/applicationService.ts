@@ -205,18 +205,24 @@ export const applicationService = {
       });
     }
 
-    // Duplicate Check
-    if (input.jobUrl) {
-      const existingJob = await prisma.job.findFirst({
-        where: { url: input.jobUrl, userId: input.userId }
-      });
-      if (existingJob) {
-        const existingApp = await prisma.application.findFirst({
-          where: { jobId: existingJob.id, userId: input.userId }
-        });
-        if (existingApp && existingApp.status !== 'Rejected' && existingApp.status !== 'Withdrawn') {
-          throw new Error("DUPLICATE_URL: You have already applied to this job URL.");
+    // Normalize the URL once — used for both dedup and storage so semantically
+    // equivalent URLs (different trailing slashes, query strings, www. prefixes,
+    // any subpage of a Company homepage) collapse to the same stored value.
+    const normalizedJobUrl = input.jobUrl ? classifyUrl(input.jobUrl).normalizedUrl : undefined;
+
+    // Duplicate Check — query Applications by URL through the Job join so we
+    // catch ALL Jobs at this URL, not just the first one returned by findFirst
+    // (which could be an orphan Job with no Application).
+    if (normalizedJobUrl) {
+      const existingApp = await prisma.application.findFirst({
+        where: {
+          userId: input.userId,
+          status: { notIn: ['Rejected', 'Withdrawn'] },
+          job: { url: normalizedJobUrl }
         }
+      });
+      if (existingApp) {
+        throw new Error("DUPLICATE_URL: You have already saved this URL.");
       }
     }
 
@@ -225,20 +231,27 @@ export const applicationService = {
       company = await prisma.company.create({ data: { name: input.companyName } });
     }
 
-    const job = await prisma.job.create({
-      data: {
-        userId: input.userId,
-        companyId: company.id,
-        title: input.jobTitle,
-        url: input.jobUrl,
-        location: input.location,
-        salaryRange: input.salaryRange,
-        rawJobDescription: input.rawJobDescription
-      }
-    });
+    // Reuse an existing Job at this URL if one exists; otherwise create a new one.
+    // Prevents orphan-Job accumulation and keeps the (userId, url) index unique.
+    let job = normalizedJobUrl
+      ? await prisma.job.findFirst({ where: { userId: input.userId, url: normalizedJobUrl } })
+      : null;
+    if (!job) {
+      job = await prisma.job.create({
+        data: {
+          userId: input.userId,
+          companyId: company.id,
+          title: input.jobTitle,
+          url: normalizedJobUrl,
+          location: input.location,
+          salaryRange: input.salaryRange,
+          rawJobDescription: input.rawJobDescription
+        }
+      });
+    }
 
     // Auto-classify by URL when caller didn't provide a category
-    const resolvedCategory = input.category ?? (input.jobUrl ? classifyUrl(input.jobUrl).category : undefined);
+    const resolvedCategory = input.category ?? (normalizedJobUrl ? classifyUrl(normalizedJobUrl).category : undefined);
 
     const application = await prisma.application.create({
       data: {
