@@ -51,23 +51,38 @@ router.get('/evaluate-job', async (req, res) => {
   try {
     const { url } = req.query;
     if (!url) return res.status(400).json({ error: 'Missing URL parameter' });
-    
+
     const job = await jobService.getJobByUrl(url as string);
     if (!job) {
-      return res.json({ applied: false, message: "New job! No records found." });
+      return res.json({ applied: false, inToApply: false, message: "New job! No records found." });
     }
 
     if (job.applications && job.applications.length > 0) {
       const app = job.applications[0];
-      return res.json({ 
-        applied: true, 
-        message: `You already applied to ${job.company?.name || 'this company'} for the ${job.title} role!`,
+      const companyLabel = job.company?.name || 'this company';
+
+      if (app.status === 'To Apply') {
+        return res.json({
+          applied: false,
+          inToApply: true,
+          message: `Already in your "Positions to Apply" — ${companyLabel}: ${job.title}`,
+          status: app.status,
+          applicationId: app.id,
+          dateSaved: app.dateSaved
+        });
+      }
+
+      return res.json({
+        applied: true,
+        inToApply: false,
+        message: `You already applied to ${companyLabel} for the ${job.title} role!`,
         status: app.status,
+        applicationId: app.id,
         dateSaved: app.dateSaved
       });
     }
 
-    return res.json({ applied: false, message: `Job exists in database as ${job.title}, but no application submitted yet.` });
+    return res.json({ applied: false, inToApply: false, message: `Job exists in database as ${job.title}, but no application submitted yet.` });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
