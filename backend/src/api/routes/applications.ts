@@ -18,20 +18,21 @@ router.get('/', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const { companyName, jobTitle, jobUrl, status, notes, dateApplied, location, salaryRange, rawJobDescription } = req.body;
+    const { companyName, jobTitle, jobUrl, status, category, notes, dateApplied, location, salaryRange, rawJobDescription } = req.body;
     if (!companyName || !jobTitle) {
       return res.status(400).json({ error: "companyName and jobTitle are required" });
     }
-    
+
     // For MVP, we use the mock user ID as in other places
     const userId = "mock-user-id";
-    
+
     const result = await applicationService.createApplication({
       userId,
       companyName,
       jobTitle,
       jobUrl,
       status: status || 'Applied',
+      category,
       notes,
       dateApplied,
       location,

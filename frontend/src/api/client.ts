@@ -31,7 +31,7 @@ export const fetchApplications = async (status?: string) => {
   return res.data;
 };
 
-export const createApplication = async (data: { companyName: string; jobTitle: string; jobUrl?: string; location?: string; salaryRange?: string; status?: string; notes?: string; dateApplied?: string }) => {
+export const createApplication = async (data: { companyName: string; jobTitle: string; jobUrl?: string; location?: string; salaryRange?: string; status?: string; category?: string; notes?: string; dateApplied?: string }) => {
   const res = await api.post('applications', data);
   return res.data;
 };

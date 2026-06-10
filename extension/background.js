@@ -77,43 +77,96 @@ async function evaluateJob(tabId, url) {
       toastPrefix = `📌 ${data.message}`;
       bgColor = '#fffbeb'; textColor = '#92400e'; borderColor = '#fcd34d';
     } else {
-      // New position — green badge & toast, auto-scrape and save to "To Apply"
-      chrome.action.setBadgeBackgroundColor({ tabId, color: '#059669' });
-      chrome.action.setBadgeText({ tabId, text: 'NEW' });
-      bgColor = '#ecfdf5'; textColor = '#065f46'; borderColor = '#a7f3d0';
+      // New entry — branch on category (Job/Careers/Company)
+      const category = data.category || 'Company';
+      const normalizedUrl = data.normalizedUrl || url;
+      const inferredCompany = data.inferredCompany || 'Unknown Company';
 
-      try {
-        const formData = new FormData();
-        formData.append('url', url);
-        const scrapeRes = await fetch('https://vega-jobs.onrender.com/api/applications/autofill', {
-          method: 'POST',
-          body: formData
-        });
+      if (category === 'Job') {
+        // Full scrape + save
+        chrome.action.setBadgeBackgroundColor({ tabId, color: '#059669' });
+        chrome.action.setBadgeText({ tabId, text: 'JOB' });
+        bgColor = '#ecfdf5'; textColor = '#065f46'; borderColor = '#a7f3d0';
 
-        if (scrapeRes.ok) {
-          const parsed = await scrapeRes.json();
-          if (parsed.companyName && parsed.jobTitle && parsed.jobTitle !== 'Unknown Title') {
-            await fetch('https://vega-jobs.onrender.com/api/applications', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                companyName: parsed.companyName,
-                jobTitle: parsed.jobTitle,
-                jobUrl: url,
-                location: parsed.location,
-                salaryRange: parsed.salaryRange,
-                notes: parsed.notes,
-                status: 'To Apply',
-                dateApplied: new Date().toISOString()
-              })
-            });
-            data.message = "✨ New Job! Saved to Positions to Apply.";
+        let saved = false;
+        try {
+          const formData = new FormData();
+          formData.append('url', url);
+          const scrapeRes = await fetch('https://vega-jobs.onrender.com/api/applications/autofill', {
+            method: 'POST',
+            body: formData
+          });
+
+          if (scrapeRes.ok) {
+            const parsed = await scrapeRes.json();
+            if (parsed.companyName && parsed.jobTitle && parsed.jobTitle !== 'Unknown Title') {
+              await fetch('https://vega-jobs.onrender.com/api/applications', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  companyName: parsed.companyName,
+                  jobTitle: parsed.jobTitle,
+                  jobUrl: normalizedUrl,
+                  location: parsed.location,
+                  salaryRange: parsed.salaryRange,
+                  notes: parsed.notes,
+                  status: 'To Apply',
+                  category: 'Job',
+                  dateApplied: new Date().toISOString()
+                })
+              });
+              saved = true;
+              data.message = `✨ New Job saved: ${parsed.companyName} — ${parsed.jobTitle}`;
+            }
           }
+        } catch (scrapeErr) {
+          console.error("Failed to auto-scrape new position:", scrapeErr);
         }
-      } catch (scrapeErr) {
-        console.error("Failed to auto-scrape new position:", scrapeErr);
+        if (!saved) data.message = "✨ New Job detected (scrape failed, not saved).";
+        toastPrefix = data.message;
+      } else if (category === 'Careers') {
+        // Lightweight save — no scrape, just record the careers landing page
+        chrome.action.setBadgeBackgroundColor({ tabId, color: '#2563EB' });
+        chrome.action.setBadgeText({ tabId, text: 'CAR' });
+        bgColor = '#eff6ff'; textColor = '#1e40af'; borderColor = '#bfdbfe';
+
+        try {
+          await fetch('https://vega-jobs.onrender.com/api/applications', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              companyName: inferredCompany,
+              jobTitle: 'Careers Page',
+              jobUrl: normalizedUrl,
+              status: 'To Apply',
+              category: 'Careers',
+              dateApplied: new Date().toISOString()
+            })
+          });
+        } catch (e) { console.error("Failed to save Careers entry:", e); }
+        toastPrefix = `📋 Careers page tracked: ${inferredCompany}`;
+      } else {
+        // Company — save homepage URL only, no toast distraction (gray badge)
+        chrome.action.setBadgeBackgroundColor({ tabId, color: '#6B7280' });
+        chrome.action.setBadgeText({ tabId, text: 'CO' });
+        bgColor = '#f9fafb'; textColor = '#374151'; borderColor = '#e5e7eb';
+
+        try {
+          await fetch('https://vega-jobs.onrender.com/api/applications', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              companyName: inferredCompany,
+              jobTitle: 'Company Page',
+              jobUrl: normalizedUrl,
+              status: 'To Apply',
+              category: 'Company',
+              dateApplied: new Date().toISOString()
+            })
+          });
+        } catch (e) { console.error("Failed to save Company entry:", e); }
+        toastPrefix = `🏢 Company tracked: ${inferredCompany}`;
       }
-      toastPrefix = data.message;
     }
 
     const toastMsg = toastPrefix;

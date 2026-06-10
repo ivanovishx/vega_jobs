@@ -1,4 +1,5 @@
 import { prisma } from '../db/prisma';
+import { classifyUrl } from './urlClassifierService';
 
 export const applicationService = {
   async getApplicationStatus(applicationId: string) {
@@ -41,7 +42,7 @@ export const applicationService = {
     };
   },
 
-  async listActiveApplications(filters?: { status?: string | string[]; company?: string; minMatchScore?: number; dueSoon?: boolean }) {
+  async listActiveApplications(filters?: { status?: string | string[]; category?: string | string[]; company?: string; minMatchScore?: number; dueSoon?: boolean }) {
     // 'To Apply' positions are bookmarks, not applications — excluded unless explicitly requested.
     const where: any = {
       status: { notIn: ['Rejected', 'Withdrawn', 'Closed', 'To Apply'] }
@@ -52,7 +53,12 @@ export const applicationService = {
     if (statusFilter && statusFilter.length > 0) {
       where.status = { in: statusFilter };
     }
-    
+
+    const categoryFilter = typeof filters?.category === 'string' ? [filters.category] : filters?.category;
+    if (categoryFilter && categoryFilter.length > 0) {
+      where.category = { in: categoryFilter };
+    }
+
     // Simplification for MVP
 
     const apps = await prisma.application.findMany({
@@ -70,6 +76,7 @@ export const applicationService = {
         companyName: app.job.company?.name || 'Unknown',
         jobTitle: app.job.title,
         status: app.status,
+        category: app.category || undefined,
         matchScore: app.matchScore || undefined,
         nextAction: app.nextAction || undefined,
         nextActionDueDate: app.nextActionDueDate?.toISOString(),
@@ -175,6 +182,7 @@ export const applicationService = {
     jobTitle: string;
     jobUrl?: string;
     status: string;
+    category?: string;
     notes?: string;
     dateApplied?: string;
     location?: string;
@@ -224,12 +232,16 @@ export const applicationService = {
       }
     });
 
+    // Auto-classify by URL when caller didn't provide a category
+    const resolvedCategory = input.category ?? (input.jobUrl ? classifyUrl(input.jobUrl).category : undefined);
+
     const application = await prisma.application.create({
       data: {
         userId: input.userId,
         jobId: job.id,
         companyId: company.id,
         status: input.status || 'Applied',
+        category: resolvedCategory,
         notes: input.notes,
         dateApplied: input.dateApplied ? new Date(input.dateApplied) : new Date()
       }
