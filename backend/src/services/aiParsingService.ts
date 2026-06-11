@@ -36,8 +36,8 @@ export const aiParsingService = {
         location = metaLoc;
       }
 
-      // Try <title> first because it often contains the company name
-      let pageTitle = $('title').text().trim();
+      // Try head title first because it contains the HTML page title, avoiding SVG title tags
+      let pageTitle = $('head title').text().trim() || $('title').first().text().trim();
       const ogTitle = $('meta[property="og:title"]').attr('content')?.trim();
       
       // Clean up common Greenhouse/Lever prefixes
@@ -69,8 +69,8 @@ export const aiParsingService = {
         }
       }
 
-      // Cleanup
-      if (!companyName) companyName = 'Unknown Company';
+      // Cleanup and sanitize company name
+      companyName = cleanCompanyName(companyName);
       if (!jobTitle) jobTitle = 'Unknown Title';
 
       return { companyName, jobTitle, location, salaryRange, notes };
@@ -130,3 +130,40 @@ export const aiParsingService = {
     }
   }
 };
+
+export function cleanCompanyName(name: string): string {
+  if (!name) return 'Unknown Company';
+  
+  let cleaned = name.trim();
+  
+  // 1. Remove SVG title concatenation like "HomeCar front...", "OpenAI logo", etc.
+  const svgNoise = /(?:Home|Car front|Steering wheel|Restaurant|Wine|Truck|Train|Bike jump|Briefcase|Money|linkedin|youtube|instagram|twitter|Globe|OpenAI logo|Hugging Face logo)+$/gi;
+  cleaned = cleaned.replace(svgNoise, '').trim();
+
+  // 2. If it contains a pipe (|) or dash (-), the company name is usually the last part
+  if (cleaned.includes('|')) {
+    const parts = cleaned.split('|');
+    cleaned = parts[parts.length - 1].trim();
+  } else if (cleaned.includes(' - ')) {
+    const parts = cleaned.split(' - ');
+    cleaned = parts[parts.length - 1].trim();
+  }
+
+  // 3. Remove common suffix/prefix words like "Careers", "Jobs", "Surgical Careers", etc.
+  cleaned = cleaned.replace(/\b(?:Careers?|Jobs?|Surgical Careers?|Surgical|Inc\.?|Corp\.?|Llc\.?|Co\.?)\b/gi, '').trim();
+
+  // 4. Remove trailing/leading punctuation
+  cleaned = cleaned.replace(/^[.,\s/\|-]+|[.,\s/\|-]+$/g, '').trim();
+
+  // 5. Default if empty (preserving valid erased company names if original was LinkedIn etc.)
+  if (!cleaned || cleaned.length < 2) {
+    const lowerOrig = name.toLowerCase().trim();
+    if (lowerOrig === 'linkedin' || lowerOrig === 'github' || lowerOrig === 'twitter' || lowerOrig === 'youtube') {
+      return name.trim();
+    }
+    return 'Unknown Company';
+  }
+
+  // Capitalize properly
+  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+}
