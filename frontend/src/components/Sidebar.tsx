@@ -72,7 +72,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
           })}
         </nav>
         <div className="p-4 border-t">
-          <div className="text-xs text-gray-500">Vega Chief of Staff</div>
+          <div className="text-xs text-gray-500">Vega 2.0 Chief of Staff</div>
         </div>
       </aside>
     </>
