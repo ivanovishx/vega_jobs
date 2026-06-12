@@ -1,6 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import cookieParser from 'cookie-parser';
+import passport from 'passport';
 import { prisma } from './db/prisma';
 
 // API Routes
@@ -10,6 +12,7 @@ import jdAnalysisRoutes from './api/routes/jdAnalysis';
 import applicationsRoutes from './api/routes/applications';
 import browserExtensionRoutes from './api/routes/browserExtension';
 import mcpRoutes from './api/routes/mcp';
+import authRoutes from './api/routes/auth';
 
 dotenv.config();
 
@@ -21,10 +24,15 @@ app.use(cors({
   credentials: true
 }));
 app.use(express.json());
+app.use(cookieParser());
+app.use(passport.initialize());
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', time: new Date() });
 });
+
+// Auth routes (no /api prefix — OAuth redirects need clean URLs)
+app.use('/auth', authRoutes);
 
 // Register routes
 app.use('/api/profile', profileRoutes);
