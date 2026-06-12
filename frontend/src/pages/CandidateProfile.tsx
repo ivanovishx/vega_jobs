@@ -75,6 +75,17 @@ export default function CandidateProfile() {
     }
   };
 
+  const handleClearAllKeywords = async () => {
+    if (!confirm('Are you sure you want to delete all keywords?')) return;
+    try {
+      const updated = await updateProfileKeywords([]);
+      setProfile(updated);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to clear keywords.');
+    }
+  };
+
   if (!profile) return <div>Loading...</div>;
 
   return (
@@ -203,7 +214,18 @@ export default function CandidateProfile() {
             </div>
 
             <div className="mb-2">
-              <label className="block text-sm font-medium text-gray-700">Extracted Keywords</label>
+              <div className="flex items-center justify-between">
+                <label className="block text-sm font-medium text-gray-700">Extracted Keywords</label>
+                {profile.resumeKeywords && profile.resumeKeywords.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleClearAllKeywords}
+                    className="text-xs text-red-500 hover:text-red-700 font-medium"
+                  >
+                    Clear all
+                  </button>
+                )}
+              </div>
               <div className="flex flex-wrap gap-2 mt-2">
                 {profile.resumeKeywords && profile.resumeKeywords.length > 0 ? (
                   profile.resumeKeywords.map((kw: string) => (
