@@ -222,6 +222,18 @@ export const applicationService = {
         }
       });
       if (existingApp) {
+        // If it was bookmarked as "To Apply" and the user now wants to mark it Applied,
+        // upgrade the status instead of rejecting.
+        if (existingApp.status === 'To Apply' && input.status && input.status !== 'To Apply') {
+          const updated = await prisma.application.update({
+            where: { id: existingApp.id },
+            data: {
+              status: input.status,
+              dateApplied: input.dateApplied ? new Date(input.dateApplied) : new Date()
+            }
+          });
+          return { applicationId: updated.id, created: false, updated: true, message: "Application status updated to " + input.status };
+        }
         throw new Error("DUPLICATE_URL: You have already saved this URL.");
       }
     }

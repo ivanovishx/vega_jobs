@@ -184,8 +184,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (!tab || !tab.url) throw new Error("Could not get current tab URL");
 
       logDebug(`Evaluating URL: ${tab.url}`);
-      const res = await fetch(`https://vega-jobs.onrender.com/api/browser-extension/evaluate-job?url=${encodeURIComponent(tab.url)}`);
-      
+      const res = await fetch('https://vega-jobs.onrender.com/api/browser-extension/evaluate-job', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: tab.url })
+      });
+
       if (!res.ok) throw new Error(`HTTP error: ${res.status}`);
       const data = await res.json();
       
