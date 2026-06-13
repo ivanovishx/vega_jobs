@@ -250,6 +250,50 @@ async function evaluateJob(tabId, url) {
   }
 }
 
+// --- Extension icon: gray (default) or green (autoEvaluate active) ---
+function createIconImageData(color) {
+  const size = 48;
+  const canvas = new OffscreenCanvas(size, size);
+  const ctx = canvas.getContext('2d');
+
+  // Background circle
+  ctx.clearRect(0, 0, size, size);
+  ctx.beginPath();
+  ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+  ctx.fillStyle = color === 'green' ? '#22c55e' : '#6b7280';
+  ctx.fill();
+
+  // Letter "V"
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 28px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('V', size / 2, size / 2 + 1);
+
+  return ctx.getImageData(0, 0, size, size);
+}
+
+function updateExtensionIcon(active) {
+  try {
+    const imageData = createIconImageData(active ? 'green' : 'gray');
+    chrome.action.setIcon({ imageData });
+  } catch (e) {
+    console.warn('setIcon failed:', e);
+  }
+}
+
+// Sync icon on startup
+chrome.storage.local.get(['autoEvaluate'], (result) => {
+  updateExtensionIcon(!!result.autoEvaluate);
+});
+
+// Sync icon whenever autoEvaluate changes
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && 'autoEvaluate' in changes) {
+    updateExtensionIcon(!!changes.autoEvaluate.newValue);
+  }
+});
+
 // Per-tab in-flight guard: tabs.onUpdated can fire multiple 'complete' events
 // for the same URL (frames, SPA route changes, redirects). Without this guard,
 // concurrent evaluations race past the dedup check and create duplicate rows.
