@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { candidateProfileService } from '../../services/candidateProfileService';
+import { PDFParse } from 'pdf-parse';
 
 import multer from 'multer';
-const pdfParse = require('pdf-parse');
 
 const router = Router();
 const MOCK_USER_ID = "mock-user-id";
@@ -40,9 +40,11 @@ router.post('/resume-pdf', upload.single('resume'), async (req, res) => {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    // Parse PDF
-    const data = await pdfParse(req.file.buffer);
-    const text = data.text;
+    // Parse PDF using PDFParse v2 class-based API
+    const parser = new PDFParse({ data: new Uint8Array(req.file.buffer) });
+    const textResult = await parser.getText();
+    const text = textResult.text;
+    await parser.destroy();
 
     // Extract unique keywords
     // 1. Lowercase, replace non-letters with spaces

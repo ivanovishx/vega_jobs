@@ -93,6 +93,12 @@ async function evaluateJob(tabId, url) {
     if (!res.ok) return;
     const data = await res.json();
 
+    // Backend determined this page is not job-related — clear badge and stop
+    if (data.ignore) {
+      chrome.action.setBadgeText({ tabId, text: '' });
+      return;
+    }
+
     let toastPrefix = '';
     let bgColor, textColor, borderColor;
 

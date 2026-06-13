@@ -194,10 +194,12 @@ export default function SavedJobs() {
                 <tbody className="divide-y divide-gray-200 bg-white">
                   {filteredApplications.map((app) => (
                     <tr key={app.applicationId}>
-                      <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">
+                      <td className="max-w-[180px] truncate py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6" title={app.companyName}>
                         {app.companyName}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{app.jobTitle}</td>
+                      <td className="max-w-[280px] truncate px-3 py-4 text-sm text-gray-500" title={app.jobTitle}>
+                        {app.jobTitle}
+                      </td>
                       <td className="whitespace-nowrap px-3 py-4 text-sm">
                         {app.category ? (
                           <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${CATEGORY_BADGE_CLASSES[app.category] || 'bg-gray-100 text-gray-700 ring-gray-500/20'}`}>
