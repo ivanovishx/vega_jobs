@@ -63,6 +63,7 @@ export const applicationService = {
 
     const apps = await prisma.application.findMany({
       where,
+      orderBy: { createdAt: 'desc' },
       include: {
         job: {
           include: { company: true }

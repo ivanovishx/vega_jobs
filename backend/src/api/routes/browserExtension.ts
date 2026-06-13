@@ -2,7 +2,15 @@ import { Router } from 'express';
 import { jobService } from '../../services/jobService';
 import { jdAnalysisService } from '../../services/jdAnalysisService';
 import { applicationService } from '../../services/applicationService';
-import { classifyUrl, inferCompanyNameFromUrl } from '../../services/urlClassifierService';
+import {
+  classifyUrl,
+  inferCompanyNameFromUrl,
+  isBlocklisted,
+  scoreTextSignals,
+  JOB_TEXT_SIGNALS,
+  CAREERS_TEXT_SIGNALS,
+  COMPANY_TEXT_SIGNALS,
+} from '../../services/urlClassifierService';
 import { prisma } from '../../db/prisma';
 
 const router = Router();
@@ -56,26 +64,58 @@ router.post('/evaluate-job', async (req, res) => {
     const { url, text } = req.body;
     if (!url) return res.status(400).json({ error: 'Missing URL parameter' });
 
+    // Step 1: blocklist check — ignore known non-employer domains immediately
+    if (isBlocklisted(url)) {
+      return res.json({ ignore: true, message: 'Blocked domain — not job-related.' });
+    }
+
     const classification = classifyUrl(url as string);
     const inferredCompany = inferCompanyNameFromUrl(url as string);
+    const pageText = (text || '').toLowerCase();
 
-    // Get candidate profile to calculate match score
+    // Step 2: validate classification with page text signals
+    const jobScore     = scoreTextSignals(pageText, JOB_TEXT_SIGNALS);
+    const careersScore = scoreTextSignals(pageText, CAREERS_TEXT_SIGNALS);
+    const companyScore = scoreTextSignals(pageText, COMPANY_TEXT_SIGNALS);
+
+    let finalCategory = classification.category;
+
+    if (classification.category === 'Job') {
+      // Needs at least 2 job signals to confirm it's a real posting
+      if (jobScore < 2) {
+        // Might be a careers listing misidentified by URL — check careers signals
+        if (careersScore >= 1) {
+          finalCategory = 'Careers';
+        } else {
+          return res.json({ ignore: true, message: 'URL looks like a job but page content does not confirm it.' });
+        }
+      }
+    } else if (classification.category === 'Careers') {
+      // Needs at least 1 careers signal
+      if (careersScore < 1 && jobScore < 2) {
+        return res.json({ ignore: true, message: 'URL looks like a careers page but page content does not confirm it.' });
+      }
+    } else {
+      // Company: only save if it's a true homepage (path is / or empty) with company signals
+      let parsed: URL;
+      try { parsed = new URL(url); } catch { return res.json({ ignore: true, message: 'Unparseable URL.' }); }
+      const isHomepage = parsed.pathname === '/' || parsed.pathname === '';
+      if (!isHomepage || companyScore < 1) {
+        return res.json({ ignore: true, message: 'Not a recognizable company homepage.' });
+      }
+    }
+
+    // Step 3: match score against candidate profile
     const profile = await candidateProfileService.getCandidateProfileByUserId(MOCK_USER_ID);
     let matchScoreStr = '';
-    if (profile && profile.resumeKeywords && profile.resumeKeywords.length > 0 && text) {
-      const pageText = text.toLowerCase();
+    if (profile && profile.resumeKeywords && profile.resumeKeywords.length > 0 && pageText) {
       let matches = 0;
-      profile.resumeKeywords.forEach(kw => {
-        // very simple bag of words match
-        if (pageText.includes(kw)) matches++;
-      });
+      profile.resumeKeywords.forEach(kw => { if (pageText.includes(kw)) matches++; });
       const score = Math.round((matches / profile.resumeKeywords.length) * 100);
       matchScoreStr = ` (Match Score: ${score}%)`;
     }
 
-    // Query Applications directly via the Job join so we consider ALL Jobs at this
-    // URL, not just the first one. Avoids the orphan-Job edge case that caused
-    // duplicate inserts.
+    // Step 4: dedup check — look for existing application at this URL
     const app = await prisma.application.findFirst({
       where: {
         userId: MOCK_USER_ID,
@@ -85,15 +125,41 @@ router.post('/evaluate-job', async (req, res) => {
       orderBy: { createdAt: 'asc' }
     });
 
+    // For Careers: also dedup by hostname to avoid saving the same careers site repeatedly
+    if (!app && finalCategory === 'Careers') {
+      let parsed: URL;
+      try { parsed = new URL(url); } catch { parsed = new URL('http://unknown'); }
+      const hostname = parsed.hostname.toLowerCase().replace(/^www\./, '');
+      const existingCareers = await prisma.application.findFirst({
+        where: {
+          userId: MOCK_USER_ID,
+          category: 'Careers',
+          job: { url: { contains: hostname } }
+        }
+      });
+      if (existingCareers) {
+        return res.json({
+          applied: false,
+          inToApply: true,
+          category: 'Careers',
+          normalizedUrl: classification.normalizedUrl,
+          homepageUrl: classification.homepageUrl,
+          message: `Careers page for ${inferredCompany} already saved.` + matchScoreStr,
+          status: 'To Apply',
+          applicationId: existingCareers.id,
+        });
+      }
+    }
+
     if (!app) {
       return res.json({
         applied: false,
         inToApply: false,
-        category: classification.category,
+        category: finalCategory,
         normalizedUrl: classification.normalizedUrl,
         homepageUrl: classification.homepageUrl,
         inferredCompany,
-        message: "New entry! No records found." + matchScoreStr
+        message: 'New entry! No records found.' + matchScoreStr
       });
     }
 
@@ -103,7 +169,7 @@ router.post('/evaluate-job', async (req, res) => {
       return res.json({
         applied: false,
         inToApply: true,
-        category: app.category || classification.category,
+        category: app.category || finalCategory,
         normalizedUrl: classification.normalizedUrl,
         homepageUrl: classification.homepageUrl,
         message: `Already in your "Positions to Apply" — ${companyLabel}: ${app.job.title}` + matchScoreStr,
@@ -116,7 +182,7 @@ router.post('/evaluate-job', async (req, res) => {
     return res.json({
       applied: true,
       inToApply: false,
-      category: app.category || classification.category,
+      category: app.category || finalCategory,
       normalizedUrl: classification.normalizedUrl,
       homepageUrl: classification.homepageUrl,
       message: `You already applied to ${companyLabel} for the ${app.job.title} role!` + matchScoreStr,
