@@ -9,6 +9,7 @@ const getBaseUrl = () => {
 
 const api = axios.create({
   baseURL: getBaseUrl(),
+  withCredentials: true,
 });
 
 export const fetchProfile = async () => {
