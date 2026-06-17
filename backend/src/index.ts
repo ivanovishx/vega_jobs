@@ -13,6 +13,7 @@ import applicationsRoutes from './api/routes/applications';
 import browserExtensionRoutes from './api/routes/browserExtension';
 import mcpRoutes from './api/routes/mcp';
 import authRoutes from './api/routes/auth';
+import jobListingsRoutes from './api/routes/jobListings';
 
 dotenv.config();
 
@@ -41,6 +42,7 @@ app.use('/api/jd', jdAnalysisRoutes);
 app.use('/api/applications', applicationsRoutes);
 app.use('/api/browser-extension', browserExtensionRoutes);
 app.use('/api/mcp', mcpRoutes);
+app.use('/api/job-listings', jobListingsRoutes);
 
 app.listen(port, () => {
   console.log(`Vega backend listening at http://localhost:${port}`);

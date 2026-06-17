@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Home, Briefcase, FileSearch, User, Bookmark, X, LogOut } from 'lucide-react';
+import { Home, Briefcase, FileSearch, User, Bookmark, X, LogOut, ListChecks } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../context/AuthContext';
 
@@ -18,6 +18,7 @@ export default function Sidebar({ isOpen, onClose, onOpenAuth }: SidebarProps) {
     { name: 'Applications', path: '/applications', icon: Briefcase },
     { name: 'Positions to Apply', path: '/saved-jobs', icon: Bookmark },
     { name: 'Job Analyzer', path: '/analyzer', icon: FileSearch },
+    { name: 'Jobs', path: '/jobs', icon: ListChecks },
     { name: 'Profile', path: '/profile', icon: User },
   ];
 

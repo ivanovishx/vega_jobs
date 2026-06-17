@@ -76,4 +76,9 @@ export const getJobDetails = async (jobId: string) => {
   return res.data;
 };
 
+export const fetchJobListings = async (params?: Record<string, string | number>) => {
+  const res = await api.get('job-listings', { params });
+  return res.data;
+};
+
 export default api;
