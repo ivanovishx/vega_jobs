@@ -1,12 +1,7 @@
 import { Router } from 'express';
-import { Pool } from 'pg';
+import { prisma } from '../../db/prisma';
 
 const router = Router();
-
-const pool = new Pool({
-  connectionString: process.env.SUPABASE_DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-});
 
 const ALLOWED_SORT = ['company', 'jobTitle', 'location', 'scrapedAt'] as const;
 type SortCol = (typeof ALLOWED_SORT)[number];
@@ -65,53 +60,45 @@ router.get('/', async (req, res) => {
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
     // Rows
-    const rowsRes = await pool.query(
-      `SELECT
-         id::text,
-         company,
-         "jobTitle",
-         location,
-         "jobUrl",
-         "scrapedAt"
+    const rows = await prisma.$queryRawUnsafe<any[]>(
+      `SELECT id::text, company, "jobTitle", location, "jobUrl", "scrapedAt"
        FROM "JobListings"
        ${where}
        ORDER BY "${col}" ${dir} NULLS LAST
        LIMIT $${i} OFFSET $${i + 1}`,
-      [...params, limit, offset]
+      ...params, limit, offset
     );
 
-    // Total count for pagination
-    const countRes = await pool.query(
+    // Total count
+    const countRows = await prisma.$queryRawUnsafe<{ total: number }[]>(
       `SELECT COUNT(*)::int AS total FROM "JobListings" ${where}`,
-      params
+      ...params
     );
 
     // Stats (filtered)
-    const statsRes = await pool.query(
-      `SELECT
-         COUNT(*)::int AS total,
-         COUNT(DISTINCT company)::int AS companies,
-         COUNT(DISTINCT location)::int AS locations
-       FROM "JobListings"
-       ${where}`,
-      params
+    const statsRows = await prisma.$queryRawUnsafe<{ total: number; companies: number; locations: number }[]>(
+      `SELECT COUNT(*)::int AS total,
+              COUNT(DISTINCT company)::int AS companies,
+              COUNT(DISTINCT location)::int AS locations
+       FROM "JobListings" ${where}`,
+      ...params
     );
 
-    // Filter options (always full list, unfiltered)
-    const optionsRes = await pool.query(`
+    // Filter options (full list, unfiltered)
+    const optionsRows = await prisma.$queryRaw<{ companies: string[]; locations: string[] }[]>`
       SELECT
         ARRAY_REMOVE(ARRAY_AGG(DISTINCT company ORDER BY company), NULL) AS companies,
         ARRAY_REMOVE(ARRAY_AGG(DISTINCT location ORDER BY location), NULL) AS locations
       FROM "JobListings"
-    `);
+    `;
 
     res.json({
-      listings: rowsRes.rows,
-      total: countRes.rows[0].total,
+      listings: rows,
+      total: countRows[0]?.total ?? 0,
       page: Math.max(parseInt(page) || 1, 1),
       pageSize: limit,
-      stats: statsRes.rows[0],
-      options: optionsRes.rows[0],
+      stats: statsRows[0] ?? { total: 0, companies: 0, locations: 0 },
+      options: optionsRows[0] ?? { companies: [], locations: [] },
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
