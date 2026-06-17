@@ -10,6 +10,7 @@ import JobAnalyzer from './pages/JobAnalyzer';
 import CandidateProfile from './pages/CandidateProfile';
 import SavedJobs from './pages/SavedJobs';
 import ApplicationDetail from './pages/ApplicationDetail';
+import Jobs from './pages/Jobs';
 
 function Layout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -86,6 +87,7 @@ function AppRoutes() {
         <Route path="/saved-jobs" element={<SavedJobs />} />
         <Route path="/analyzer" element={<JobAnalyzer />} />
         <Route path="/profile" element={<CandidateProfile />} />
+        <Route path="/jobs" element={<Jobs />} />
       </Routes>
     </Layout>
   );
