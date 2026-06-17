@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { fetchJobListings } from '../api/client';
 import {
   ArrowUpDown,
@@ -11,6 +11,7 @@ import {
   Briefcase,
   Building2,
   MapPin,
+  RefreshCw,
 } from 'lucide-react';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -40,7 +41,6 @@ type SortDir = 'asc' | 'desc';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const POLL_MS = 5 * 60_000; // 5 minutes
 const PAGE_SIZES = [25, 50, 100];
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -72,6 +72,8 @@ export default function Jobs() {
   const [stats, setStats] = useState<Stats>({ total: 0, companies: 0, locations: 0 });
   const [options, setOptions] = useState<Options>({ companies: [], locations: [] });
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Filters
@@ -87,9 +89,6 @@ export default function Jobs() {
   // Pagination
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
-
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
 
   const load = useCallback(async (initial = false) => {
     try {
@@ -107,6 +106,7 @@ export default function Jobs() {
       setTotal(data.total ?? 0);
       setStats(data.stats ?? { total: 0, companies: 0, locations: 0 });
       setOptions(data.options ?? { companies: [], locations: [] });
+      setLastUpdated(new Date());
       if (initial) setLoading(false);
     } catch (err: any) {
       if (initial) {
@@ -122,14 +122,11 @@ export default function Jobs() {
     load(true);
   }, [load]);
 
-  // Polling for live updates
-  useEffect(() => {
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    intervalRef.current = setInterval(() => load(false), POLL_MS);
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [load]);
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await load(false);
+    setRefreshing(false);
+  };
 
   // Reset to page 1 when filters change
   const handleSearch = (v: string) => { setSearch(v); setPage(1); };
@@ -164,9 +161,26 @@ export default function Jobs() {
     <div className="space-y-5">
 
       {/* ── Header ── */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Jobs</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Browse and filter open positions</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Jobs</h1>
+          <p className="text-sm text-gray-500 mt-0.5">Browse and filter open positions</p>
+        </div>
+        <div className="flex items-center gap-3 pt-1">
+          {lastUpdated && (
+            <span className="text-xs text-gray-400 hidden sm:block">
+              Updated {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          )}
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing || loading}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* ── Stats ── */}
