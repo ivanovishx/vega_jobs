@@ -28,6 +28,7 @@ export const UpdateAppStatusSchema = z.object({
 });
 
 export const ListActiveAppsSchema = z.object({
+  userId: z.string(),
   status: z.array(z.string()).optional(),
   company: z.string().optional(),
   minMatchScore: z.number().optional(),
@@ -35,6 +36,7 @@ export const ListActiveAppsSchema = z.object({
 });
 
 export const SearchJobsSchema = z.object({
+  userId: z.string(),
   query: z.string().optional(),
   company: z.string().optional(),
   title: z.string().optional(),
@@ -61,5 +63,5 @@ export const GetFollowUpRecsSchema = z.object({
 });
 
 export const SummarizePipelineSchema = z.object({
-  candidateProfileId: z.string()
+  userId: z.string()
 });

@@ -2,8 +2,10 @@ import { useState } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Menu, User } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import ProtectedRoute from './components/ProtectedRoute';
 import Sidebar from './components/Sidebar';
 import AuthModal from './components/AuthModal';
+import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Applications from './pages/Applications';
 import JobAnalyzer from './pages/JobAnalyzer';
@@ -39,7 +41,6 @@ function Layout({ children }: { children: React.ReactNode }) {
 
           <h1 className="text-lg font-bold text-indigo-600 tracking-tight">Vega</h1>
 
-          {/* User button — mobile */}
           <button
             type="button"
             onClick={() => !user && setAuthModalOpen(true)}
@@ -79,17 +80,25 @@ function Layout({ children }: { children: React.ReactNode }) {
 
 function AppRoutes() {
   return (
-    <Layout>
-      <Routes>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/applications" element={<Applications />} />
-        <Route path="/applications/:id" element={<ApplicationDetail />} />
-        <Route path="/saved-jobs" element={<SavedJobs />} />
-        <Route path="/analyzer" element={<JobAnalyzer />} />
-        <Route path="/profile" element={<CandidateProfile />} />
-        <Route path="/jobs" element={<Jobs />} />
-      </Routes>
-    </Layout>
+    <Routes>
+      <Route path="/login" element={<Login />} />
+      <Route
+        path="/*"
+        element={
+          <Layout>
+            <Routes>
+              <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+              <Route path="/applications" element={<ProtectedRoute><Applications /></ProtectedRoute>} />
+              <Route path="/applications/:id" element={<ProtectedRoute><ApplicationDetail /></ProtectedRoute>} />
+              <Route path="/saved-jobs" element={<ProtectedRoute><SavedJobs /></ProtectedRoute>} />
+              <Route path="/analyzer" element={<ProtectedRoute><JobAnalyzer /></ProtectedRoute>} />
+              <Route path="/profile" element={<ProtectedRoute><CandidateProfile /></ProtectedRoute>} />
+              <Route path="/jobs" element={<ProtectedRoute><Jobs /></ProtectedRoute>} />
+            </Routes>
+          </Layout>
+        }
+      />
+    </Routes>
   );
 }
 

@@ -42,13 +42,12 @@ export const applicationService = {
     };
   },
 
-  async listActiveApplications(filters?: { status?: string | string[]; category?: string | string[]; company?: string; minMatchScore?: number; dueSoon?: boolean }) {
-    // 'To Apply' positions are bookmarks, not applications — excluded unless explicitly requested.
+  async listActiveApplications(userId: string, filters?: { status?: string | string[]; category?: string | string[]; company?: string; minMatchScore?: number; dueSoon?: boolean }) {
     const where: any = {
+      userId,
       status: { notIn: ['Rejected', 'Withdrawn', 'Closed', 'To Apply'] }
     };
 
-    // Normalize: express query params arrive as a string for a single value
     const statusFilter = typeof filters?.status === 'string' ? [filters.status] : filters?.status;
     if (statusFilter && statusFilter.length > 0) {
       where.status = { in: statusFilter };
@@ -58,8 +57,6 @@ export const applicationService = {
     if (categoryFilter && categoryFilter.length > 0) {
       where.category = { in: categoryFilter };
     }
-
-    // Simplification for MVP
 
     const apps = await prisma.application.findMany({
       where,
@@ -141,17 +138,9 @@ export const applicationService = {
     return { recommendations };
   },
 
-  async summarizePipeline(candidateProfileId: string) {
-    let profile;
-    if (candidateProfileId.startsWith('mock-user-id')) {
-      profile = await prisma.candidateProfile.findFirst();
-    } else {
-      profile = await prisma.candidateProfile.findUnique({ where: { id: candidateProfileId } });
-    }
-    if (!profile) throw new Error("Profile not found");
-
+  async summarizePipeline(userId: string) {
     const allApps = await prisma.application.findMany({
-      where: { userId: profile.userId }
+      where: { userId }
     });
 
     const totalApplications = allApps.length;
@@ -195,17 +184,6 @@ export const applicationService = {
     salaryRange?: string;
     rawJobDescription?: string;
   }) {
-    let user = await prisma.user.findUnique({ where: { id: input.userId } });
-    if (!user) {
-      user = await prisma.user.create({
-        data: {
-          id: input.userId,
-          email: `${input.userId}@example.com`,
-          name: 'Mock User'
-        }
-      });
-    }
-
     // Normalize the URL once — used for both dedup and storage so semantically
     // equivalent URLs (different trailing slashes, query strings, www. prefixes,
     // any subpage of a Company homepage) collapse to the same stored value.

@@ -8,7 +8,8 @@
     "tabs",
     "scripting",
     "storage",
-    "unlimitedStorage"
+    "unlimitedStorage",
+    "cookies"
   ],
   "host_permissions": [
     "http://localhost:3001/*",

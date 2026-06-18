@@ -10,12 +10,14 @@ export const candidateProfileService = {
     });
   },
 
+  async createCandidateProfile(userId: string) {
+    return prisma.candidateProfile.create({
+      data: { userId },
+      include: { user: true }
+    });
+  },
+
   async getCandidateProfileByUserId(userId: string) {
-    if (userId.startsWith('mock-user-id')) {
-      return prisma.candidateProfile.findFirst({
-        include: { user: true }
-      });
-    }
     return prisma.candidateProfile.findUnique({
       where: { userId },
       include: { user: true }

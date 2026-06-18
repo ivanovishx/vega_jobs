@@ -34,8 +34,8 @@ export const updateProfileKeywords = async (keywords: string[]) => {
   return res.data;
 };
 
-export const fetchDashboardSummary = async (profileId: string) => {
-  const res = await api.get(`applications/summary?profileId=${profileId}`);
+export const fetchDashboardSummary = async () => {
+  const res = await api.get('applications/summary');
   return res.data;
 };
 

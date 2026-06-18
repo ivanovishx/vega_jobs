@@ -1,16 +1,24 @@
 import { Router } from 'express';
 import { jdAnalysisService } from '../../services/jdAnalysisService';
+import { candidateProfileService } from '../../services/candidateProfileService';
+import type { AuthRequest } from '../../middleware/auth';
 
 const router = Router();
-const MOCK_USER_ID = "mock-user-id";
 
 router.post('/analyze', async (req, res) => {
   try {
-    const { jobId, rawJobDescription, candidateProfileId } = req.body;
+    const userId = (req as AuthRequest).userId!;
+    const { jobId, rawJobDescription } = req.body;
+
+    const profile = await candidateProfileService.getCandidateProfileByUserId(userId);
+    if (!profile) {
+      return res.status(404).json({ error: 'Profile not found. Complete your profile before analyzing jobs.' });
+    }
+
     const result = await jdAnalysisService.analyzeJobDescription({
       jobId,
       rawJobDescription,
-      candidateProfileId
+      candidateProfileId: profile.id
     });
     res.json(result);
   } catch (err: any) {

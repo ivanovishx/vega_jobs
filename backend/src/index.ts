@@ -14,6 +14,7 @@ import browserExtensionRoutes from './api/routes/browserExtension';
 import mcpRoutes from './api/routes/mcp';
 import authRoutes from './api/routes/auth';
 import jobListingsRoutes from './api/routes/jobListings';
+import { requireAuth } from './middleware/auth';
 
 dotenv.config();
 
@@ -34,6 +35,9 @@ app.get('/health', (req, res) => {
 
 // Auth routes (no /api prefix — OAuth redirects need clean URLs)
 app.use('/auth', authRoutes);
+
+// All /api routes require authentication
+app.use('/api', requireAuth);
 
 // Register routes
 app.use('/api/profile', profileRoutes);
