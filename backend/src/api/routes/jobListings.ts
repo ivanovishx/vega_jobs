@@ -1,7 +1,21 @@
 import { Router } from 'express';
 import { prisma } from '../../db/prisma';
+import { jobMatchingService } from '../../services/jobMatchingService';
 
 const router = Router();
+
+router.get('/matches', async (req, res) => {
+  try {
+    const userId = (req as any).user?.id ?? 'mock-user-id';
+    const results = await jobMatchingService.getMatches(userId);
+    if (!results) {
+      return res.status(404).json({ error: 'Profile not found. Complete your profile to see matches.' });
+    }
+    res.json({ listings: results, total: results.length });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 const ALLOWED_SORT = ['company', 'jobTitle', 'location', 'scrapedAt'] as const;
 type SortCol = (typeof ALLOWED_SORT)[number];
