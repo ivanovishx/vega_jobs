@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { applicationService } from '../../services/applicationService';
 import { aiParsingService } from '../../services/aiParsingService';
 import multer from 'multer';
+import type { AuthRequest } from '../../middleware/auth';
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -9,7 +10,8 @@ const router = Router();
 
 router.get('/', async (req, res) => {
   try {
-    const result = await applicationService.listActiveApplications(req.query as any);
+    const userId = (req as AuthRequest).userId!;
+    const result = await applicationService.listActiveApplications(userId, req.query as any);
     res.json(result);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -18,13 +20,11 @@ router.get('/', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
+    const userId = (req as AuthRequest).userId!;
     const { companyName, jobTitle, jobUrl, status, category, notes, dateApplied, location, salaryRange, rawJobDescription } = req.body;
     if (!companyName || !jobTitle) {
       return res.status(400).json({ error: "companyName and jobTitle are required" });
     }
-
-    // For MVP, we use the mock user ID as in other places
-    const userId = "mock-user-id";
 
     const result = await applicationService.createApplication({
       userId,
@@ -39,7 +39,7 @@ router.post('/', async (req, res) => {
       salaryRange,
       rawJobDescription
     });
-    
+
     res.json(result);
   } catch (err: any) {
     if (err.message && err.message.includes('DUPLICATE_URL')) {
@@ -61,11 +61,9 @@ router.post('/autofill', upload.single('screenshot'), async (req, res) => {
     let extractedData;
 
     if (file) {
-      // Parse from Image
       const base64Data = file.buffer.toString('base64');
       extractedData = await aiParsingService.parseFromImage(file.mimetype, base64Data);
     } else {
-      // Parse from URL
       extractedData = await aiParsingService.parseFromUrl(url);
     }
 
@@ -77,10 +75,8 @@ router.post('/autofill', upload.single('screenshot'), async (req, res) => {
 
 router.get('/summary', async (req, res) => {
   try {
-    // Hardcoding candidateProfileId for MVP since we don't have auth middleware yet
-    const profileId = req.query.profileId as string;
-    if (!profileId) return res.status(400).json({ error: "profileId required" });
-    const result = await applicationService.summarizePipeline(profileId);
+    const userId = (req as AuthRequest).userId!;
+    const result = await applicationService.summarizePipeline(userId);
     res.json(result);
   } catch (err: any) {
     res.status(500).json({ error: err.message });

@@ -37,14 +37,14 @@ export const jobService = {
   },
 
   async searchJobs(filters: {
+    userId: string;
     query?: string;
     company?: string;
     title?: string;
     location?: string;
     minMatchScore?: number;
   }) {
-    // This is a basic implementation. For advanced search, we'd use better full-text search.
-    const whereClause: any = {};
+    const whereClause: any = { userId: filters.userId };
     if (filters.company) {
       whereClause.company = { name: { contains: filters.company, mode: 'insensitive' } };
     }

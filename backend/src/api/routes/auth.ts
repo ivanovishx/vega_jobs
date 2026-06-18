@@ -50,6 +50,12 @@ if (googleConfigured) {
             },
           });
 
+          await prisma.candidateProfile.upsert({
+            where: { userId: user.id },
+            update: {},
+            create: { userId: user.id },
+          });
+
           done(null, user);
         } catch (err) {
           done(err as Error);
@@ -111,17 +117,13 @@ router.post('/register', async (req: Request, res: Response) => {
   const passwordHash = await bcrypt.hash(password, 10);
   const user = await prisma.user.create({ data: { email, name: name ?? null, passwordHash } });
 
-  // Pre-populate phone in candidate profile if provided
-  if (phone) {
-    await prisma.candidateProfile.upsert({
-      where: { userId: user.id },
-      update: { phone },
-      create: { userId: user.id, phone },
-    });
-  }
+  await prisma.candidateProfile.create({
+    data: { userId: user.id, phone: phone ?? null },
+  });
 
-  setTokenCookie(res, makeToken(user.id));
-  res.status(201).json({ id: user.id, email: user.email, name: user.name, picture: user.picture });
+  const token = makeToken(user.id);
+  setTokenCookie(res, token);
+  res.status(201).json({ id: user.id, email: user.email, name: user.name, picture: user.picture, token });
 });
 
 router.post('/login', async (req: Request, res: Response) => {
@@ -144,8 +146,9 @@ router.post('/login', async (req: Request, res: Response) => {
     return;
   }
 
-  setTokenCookie(res, makeToken(user.id));
-  res.json({ id: user.id, email: user.email, name: user.name, picture: user.picture });
+  const token = makeToken(user.id);
+  setTokenCookie(res, token);
+  res.json({ id: user.id, email: user.email, name: user.name, picture: user.picture, token });
 });
 
 // ── Session ───────────────────────────────────────────────────────────────────

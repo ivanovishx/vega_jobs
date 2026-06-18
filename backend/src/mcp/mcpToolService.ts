@@ -28,7 +28,7 @@ export const mcpToolService = {
       }
       case 'list_active_applications': {
         const input = ListActiveAppsSchema.parse(args);
-        return applicationService.listActiveApplications(input);
+        return applicationService.listActiveApplications(input.userId, input);
       }
       case 'search_jobs': {
         const input = SearchJobsSchema.parse(args);
@@ -48,7 +48,7 @@ export const mcpToolService = {
       }
       case 'summarize_pipeline': {
         const input = SummarizePipelineSchema.parse(args);
-        return applicationService.summarizePipeline(input.candidateProfileId);
+        return applicationService.summarizePipeline(input.userId);
       }
       default:
         throw new Error(`Tool ${toolName} not found`);

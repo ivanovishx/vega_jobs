@@ -1,12 +1,13 @@
 import { Router } from 'express';
 import { prisma } from '../../db/prisma';
 import { jobMatchingService } from '../../services/jobMatchingService';
+import type { AuthRequest } from '../../middleware/auth';
 
 const router = Router();
 
 router.get('/matches', async (req, res) => {
   try {
-    const userId = (req as any).user?.id ?? 'mock-user-id';
+    const userId = (req as AuthRequest).userId!;
     const results = await jobMatchingService.getMatches(userId);
     if (!results) {
       return res.status(404).json({ error: 'Profile not found. Complete your profile to see matches.' });

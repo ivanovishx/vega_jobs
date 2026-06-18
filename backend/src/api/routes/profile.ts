@@ -1,19 +1,21 @@
 import { Router } from 'express';
 import { candidateProfileService } from '../../services/candidateProfileService';
 import { PDFParse } from 'pdf-parse';
-
 import multer from 'multer';
+import type { AuthRequest } from '../../middleware/auth';
 
 const router = Router();
-const MOCK_USER_ID = "mock-user-id";
 const upload = multer({ storage: multer.memoryStorage() });
 
-// Basic stop words to filter out
 const STOP_WORDS = new Set(['the', 'and', 'for', 'with', 'that', 'this', 'from', 'are', 'was', 'were', 'have', 'has', 'had', 'what', 'when', 'where', 'who', 'which', 'why', 'how', 'all', 'any', 'both', 'each', 'few', 'more', 'most', 'other', 'some', 'such', 'no', 'nor', 'not', 'only', 'own', 'same', 'so', 'than', 'too', 'very', 'can', 'will', 'just', 'should', 'now']);
 
 router.get('/', async (req, res) => {
   try {
-    const profile = await candidateProfileService.getCandidateProfileByUserId(MOCK_USER_ID);
+    const userId = (req as AuthRequest).userId!;
+    let profile = await candidateProfileService.getCandidateProfileByUserId(userId);
+    if (!profile) {
+      profile = await candidateProfileService.createCandidateProfile(userId);
+    }
     res.json(profile);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -22,7 +24,8 @@ router.get('/', async (req, res) => {
 
 router.put('/', async (req, res) => {
   try {
-    const profile = await candidateProfileService.getCandidateProfileByUserId(MOCK_USER_ID);
+    const userId = (req as AuthRequest).userId!;
+    const profile = await candidateProfileService.getCandidateProfileByUserId(userId);
     if (profile) {
       const updated = await candidateProfileService.updateCandidateProfile(profile.id, req.body);
       res.json(updated);
@@ -40,22 +43,17 @@ router.post('/resume-pdf', upload.single('resume'), async (req, res) => {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    // Parse PDF using PDFParse v2 class-based API
     const parser = new PDFParse({ data: new Uint8Array(req.file.buffer) });
     const textResult = await parser.getText();
     const text = textResult.text;
     await parser.destroy();
 
-    // Extract unique keywords
-    // 1. Lowercase, replace non-letters with spaces
     const cleanText = text.toLowerCase().replace(/[^a-z0-9+#]/g, ' ');
-    // 2. Split by spaces, filter short/stop words
     const words = cleanText.split(/\s+/).filter((w: string) => w.length > 2 && !STOP_WORDS.has(w));
-    // 3. Deduplicate
     const uniqueKeywords = Array.from(new Set(words));
 
-    // Update Profile
-    let profile = await candidateProfileService.getCandidateProfileByUserId(MOCK_USER_ID);
+    const userId = (req as AuthRequest).userId!;
+    let profile = await candidateProfileService.getCandidateProfileByUserId(userId);
     if (!profile) {
       return res.status(404).json({ error: "Profile not found" });
     }
@@ -78,7 +76,8 @@ router.put('/keywords', async (req, res) => {
       return res.status(400).json({ error: 'keywords must be an array' });
     }
 
-    let profile = await candidateProfileService.getCandidateProfileByUserId(MOCK_USER_ID);
+    const userId = (req as AuthRequest).userId!;
+    let profile = await candidateProfileService.getCandidateProfileByUserId(userId);
     if (!profile) {
       return res.status(404).json({ error: "Profile not found" });
     }

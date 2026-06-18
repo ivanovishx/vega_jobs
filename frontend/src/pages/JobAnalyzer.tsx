@@ -7,14 +7,12 @@ export default function JobAnalyzer() {
   const [rawText, setRawText] = useState('');
   const [analysis, setAnalysis] = useState<any>(null);
   const [loading, setLoading] = useState(false);
-  const profileId = "mock-user-id";
 
   const handleAnalyze = async () => {
     setLoading(true);
     try {
       const res = await analyzeJobDescription({
-        rawJobDescription: rawText,
-        candidateProfileId: profileId
+        rawJobDescription: rawText
       });
       setAnalysis(res);
     } catch (err) {

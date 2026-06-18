@@ -1,12 +1,13 @@
 import { Router } from 'express';
 import { jobService } from '../../services/jobService';
+import type { AuthRequest } from '../../middleware/auth';
 
 const router = Router();
 
 router.get('/', async (req, res) => {
   try {
-    const filters = req.query;
-    const jobs = await jobService.searchJobs(filters as any);
+    const userId = (req as AuthRequest).userId!;
+    const jobs = await jobService.searchJobs({ ...req.query as any, userId });
     res.json(jobs);
   } catch (err: any) {
     res.status(500).json({ error: err.message });

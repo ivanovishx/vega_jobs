@@ -4,10 +4,9 @@ import { Activity, Briefcase, Calendar, CheckCircle, XCircle } from 'lucide-reac
 
 export default function Dashboard() {
   const [summary, setSummary] = useState<any>(null);
-  const profileId = "mock-user-id"; // Will replace with real auth later
 
   useEffect(() => {
-    fetchDashboardSummary(profileId).then(setSummary).catch(console.error);
+    fetchDashboardSummary().then(setSummary).catch(console.error);
   }, []);
 
   if (!summary) return <div className="animate-pulse flex space-x-4">Loading dashboard...</div>;
