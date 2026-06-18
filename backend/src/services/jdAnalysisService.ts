@@ -27,8 +27,11 @@ export const jdAnalysisService = {
       workAuthorization: profile.workAuthorization,
       yearsOfExperience: profile.yearsOfExperience,
       coreSkills: profile.coreSkills,
+      tools: (profile as any).tools ?? [],
       domainExperience: profile.domainExperience,
-      preferredWorkMode: profile.preferredWorkMode
+      preferredWorkMode: profile.preferredWorkMode,
+      seniorityLevel: (profile as any).seniorityLevel ?? null,
+      educationLevel: (profile as any).educationLevel ?? null,
     });
 
     let suggestedApplicationStrategy = 'Apply normally.';

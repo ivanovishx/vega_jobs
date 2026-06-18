@@ -30,7 +30,10 @@ model CandidateProfile {
   targetLocations   String[]
   workAuthorization String?
   yearsOfExperience Int      @default(0)
+  seniorityLevel    String?
+  educationLevel    String?
   coreSkills        String[]
+  tools             String[] @default([])
   domainExperience  String[]
   preferredWorkMode String?
   minimumSalary     Int?

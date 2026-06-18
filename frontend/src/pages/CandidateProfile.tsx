@@ -166,33 +166,92 @@ export default function CandidateProfile() {
               className="mt-1 block w-full shadow-sm sm:text-sm focus:ring-indigo-500 focus:border-indigo-500 border-gray-300 rounded-md p-2 border"
             />
           </div>
-          
+
           <div className="col-span-6 sm:col-span-3">
             <label className="block text-sm font-medium text-gray-700">Work Authorization</label>
-            <input
-              type="text"
+            <select
               value={profile.workAuthorization || ''}
               onChange={e => setProfile({...profile, workAuthorization: e.target.value})}
               className="mt-1 block w-full shadow-sm sm:text-sm focus:ring-indigo-500 focus:border-indigo-500 border-gray-300 rounded-md p-2 border"
-            />
+            >
+              <option value="">Select...</option>
+              <option value="US Citizen">US Citizen</option>
+              <option value="Permanent Resident (Green Card)">Permanent Resident (Green Card)</option>
+              <option value="Need Sponsorship (H1B)">Need Sponsorship (H1B)</option>
+              <option value="OPT/CPT">OPT/CPT</option>
+              <option value="TN Visa">TN Visa</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+
+          <div className="col-span-6 sm:col-span-3">
+            <label className="block text-sm font-medium text-gray-700">Seniority Level</label>
+            <p className="text-xs text-gray-400 mb-1">Used to match against job titles (e.g. Senior, Director)</p>
+            <select
+              value={profile.seniorityLevel || ''}
+              onChange={e => setProfile({...profile, seniorityLevel: e.target.value})}
+              className="mt-1 block w-full shadow-sm sm:text-sm focus:ring-indigo-500 focus:border-indigo-500 border-gray-300 rounded-md p-2 border"
+            >
+              <option value="">Select...</option>
+              <option value="Junior">Junior / Entry Level</option>
+              <option value="Mid">Mid Level</option>
+              <option value="Senior">Senior</option>
+              <option value="Staff">Staff</option>
+              <option value="Principal">Principal</option>
+              <option value="Director">Director / Head of</option>
+              <option value="Executive">Executive (VP, C-Level)</option>
+            </select>
+          </div>
+
+          <div className="col-span-6 sm:col-span-3">
+            <label className="block text-sm font-medium text-gray-700">Education Level</label>
+            <p className="text-xs text-gray-400 mb-1">Highest degree completed or in progress</p>
+            <select
+              value={profile.educationLevel || ''}
+              onChange={e => setProfile({...profile, educationLevel: e.target.value})}
+              className="mt-1 block w-full shadow-sm sm:text-sm focus:ring-indigo-500 focus:border-indigo-500 border-gray-300 rounded-md p-2 border"
+            >
+              <option value="">Select...</option>
+              <option value="High School">High School / GED</option>
+              <option value="Associate">Associate's Degree</option>
+              <option value="Bachelor's">Bachelor's Degree</option>
+              <option value="Master's">Master's Degree</option>
+              <option value="PhD">PhD / Doctorate</option>
+            </select>
           </div>
 
           <div className="col-span-6">
-            <label className="block text-sm font-medium text-gray-700">Core Skills (comma separated)</label>
+            <label className="block text-sm font-medium text-gray-700">Core Skills</label>
+            <p className="text-xs text-gray-400 mb-1">Competencies and soft skills — e.g. Cross-functional Leadership, Program Management, Agile</p>
             <input
               type="text"
               value={profile.coreSkills?.join(', ')}
-              onChange={e => setProfile({...profile, coreSkills: e.target.value.split(',').map((s: string) => s.trim())})}
+              onChange={e => setProfile({...profile, coreSkills: e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean)})}
+              placeholder="Cross-functional Leadership, Program Management, Agile, Scrum..."
               className="mt-1 block w-full shadow-sm sm:text-sm focus:ring-indigo-500 focus:border-indigo-500 border-gray-300 rounded-md p-2 border"
             />
           </div>
 
           <div className="col-span-6">
-            <label className="block text-sm font-medium text-gray-700">Domain Experience (comma separated)</label>
+            <label className="block text-sm font-medium text-gray-700">Tools & Technologies</label>
+            <p className="text-xs text-gray-400 mb-1">Specific tools, languages, and platforms — e.g. Python, AWS, Jira, Kubernetes, React</p>
+            <input
+              type="text"
+              value={profile.tools?.join(', ') || ''}
+              onChange={e => setProfile({...profile, tools: e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean)})}
+              placeholder="Python, AWS, Jira, Docker, Kubernetes, React..."
+              className="mt-1 block w-full shadow-sm sm:text-sm focus:ring-indigo-500 focus:border-indigo-500 border-gray-300 rounded-md p-2 border"
+            />
+          </div>
+
+          <div className="col-span-6">
+            <label className="block text-sm font-medium text-gray-700">Domain Experience</label>
+            <p className="text-xs text-gray-400 mb-1">Industries or technical domains — e.g. Robotics, AI/ML, Supply Chain, Healthcare</p>
             <input
               type="text"
               value={profile.domainExperience?.join(', ')}
-              onChange={e => setProfile({...profile, domainExperience: e.target.value.split(',').map((s: string) => s.trim())})}
+              onChange={e => setProfile({...profile, domainExperience: e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean)})}
+              placeholder="Robotics, AI/ML, Supply Chain, Consumer Hardware..."
               className="mt-1 block w-full shadow-sm sm:text-sm focus:ring-indigo-500 focus:border-indigo-500 border-gray-300 rounded-md p-2 border"
             />
           </div>
