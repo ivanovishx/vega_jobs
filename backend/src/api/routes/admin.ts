@@ -19,19 +19,30 @@ function setImpersonationCookie(res: Response, token: string) {
 
 router.get('/users', requireRole('ADMIN'), async (req: AuthRequest, res: Response) => {
   const search = (req.query.search as string | undefined)?.trim();
-  const users = await prisma.user.findMany({
-    where: search
-      ? {
-          OR: [
-            { email: { contains: search, mode: 'insensitive' } },
-            { name: { contains: search, mode: 'insensitive' } },
-          ],
-        }
-      : undefined,
-    select: { id: true, email: true, name: true, picture: true, role: true, createdAt: true },
-    orderBy: { createdAt: 'desc' },
-  });
-  res.json(users);
+  const page = Math.max(1, parseInt(req.query.page as string, 10) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string, 10) || 20));
+
+  const where = search
+    ? {
+        OR: [
+          { email: { contains: search, mode: 'insensitive' as const } },
+          { name: { contains: search, mode: 'insensitive' as const } },
+        ],
+      }
+    : undefined;
+
+  const [users, total] = await Promise.all([
+    prisma.user.findMany({
+      where,
+      select: { id: true, email: true, name: true, picture: true, role: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+    prisma.user.count({ where }),
+  ]);
+
+  res.json({ users, total, page, totalPages: Math.max(1, Math.ceil(total / limit)) });
 });
 
 router.get('/users/:id/profile', requireRole('ADMIN'), async (req: AuthRequest, res: Response) => {
