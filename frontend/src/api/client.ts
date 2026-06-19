@@ -86,6 +86,11 @@ export const fetchJobMatches = async () => {
   return res.data;
 };
 
+export const fetchCompaniesWithJobs = async () => {
+  const res = await api.get('job-listings/companies');
+  return res.data;
+};
+
 export const fetchAdminUsers = async (search?: string) => {
   const res = await api.get('admin/users', { params: search ? { search } : undefined });
   return res.data;
