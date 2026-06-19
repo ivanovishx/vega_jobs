@@ -14,6 +14,7 @@ import browserExtensionRoutes from './api/routes/browserExtension';
 import mcpRoutes from './api/routes/mcp';
 import authRoutes from './api/routes/auth';
 import jobListingsRoutes from './api/routes/jobListings';
+import companiesRoutes from './api/routes/companies';
 import adminRoutes from './api/routes/admin';
 import { requireAuth } from './middleware/auth';
 
@@ -48,6 +49,7 @@ app.use('/api/applications', applicationsRoutes);
 app.use('/api/browser-extension', browserExtensionRoutes);
 app.use('/api/mcp', mcpRoutes);
 app.use('/api/job-listings', jobListingsRoutes);
+app.use('/api/companies', companiesRoutes);
 app.use('/api/admin', adminRoutes);
 
 app.listen(port, () => {

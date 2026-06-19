@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { fetchCompaniesWithJobs } from '../api/client';
-import { Search, Building2, Briefcase, RefreshCw, ArrowRight } from 'lucide-react';
+import { fetchCompanies } from '../api/client';
+import { Search, Building2, RefreshCw, ExternalLink } from 'lucide-react';
 
 interface CompanyRow {
-  company: string;
-  jobCount: number;
+  companyName: string;
+  website: string | null;
 }
 
 export default function Companies() {
@@ -18,7 +17,7 @@ export default function Companies() {
 
   const load = useCallback(async (initial = false) => {
     try {
-      const data = await fetchCompaniesWithJobs();
+      const data = await fetchCompanies();
       setCompanies(data.companies ?? []);
       setLastUpdated(new Date());
       if (initial) setLoading(false);
@@ -43,13 +42,8 @@ export default function Companies() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return companies;
-    return companies.filter(c => c.company.toLowerCase().includes(q));
+    return companies.filter(c => c.companyName.toLowerCase().includes(q));
   }, [companies, search]);
-
-  const totalJobs = useMemo(
-    () => filtered.reduce((sum, c) => sum + c.jobCount, 0),
-    [filtered]
-  );
 
   if (error) {
     return (
@@ -64,7 +58,7 @@ export default function Companies() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Companies</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Companies with open positions</p>
+          <p className="text-sm text-gray-500 mt-0.5">Companies in the scrape queue</p>
         </div>
         <div className="flex items-center gap-3 pt-1">
           {lastUpdated && (
@@ -84,24 +78,13 @@ export default function Companies() {
       </div>
 
       {/* ── Stats ── */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="bg-white rounded-xl border border-gray-200 px-5 py-4 flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-emerald-50">
-            <Building2 className="h-5 w-5 text-emerald-600" />
-          </div>
-          <div>
-            <p className="text-xs text-gray-500 font-medium">Companies</p>
-            <p className="text-xl font-bold text-gray-900">{filtered.length.toLocaleString()}</p>
-          </div>
+      <div className="bg-white rounded-xl border border-gray-200 px-5 py-4 flex items-center gap-3 max-w-xs">
+        <div className="p-2 rounded-lg bg-emerald-50">
+          <Building2 className="h-5 w-5 text-emerald-600" />
         </div>
-        <div className="bg-white rounded-xl border border-gray-200 px-5 py-4 flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-indigo-50">
-            <Briefcase className="h-5 w-5 text-indigo-600" />
-          </div>
-          <div>
-            <p className="text-xs text-gray-500 font-medium">Open Positions</p>
-            <p className="text-xl font-bold text-gray-900">{totalJobs.toLocaleString()}</p>
-          </div>
+        <div>
+          <p className="text-xs text-gray-500 font-medium">Total Companies</p>
+          <p className="text-xl font-bold text-gray-900">{filtered.length.toLocaleString()}</p>
         </div>
       </div>
 
@@ -126,13 +109,10 @@ export default function Companies() {
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50">
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                  Company
+                  Company Name
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">
-                  Open Positions
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">
-                  Actions
+                  Website
                 </th>
               </tr>
             </thead>
@@ -140,7 +120,7 @@ export default function Companies() {
               {loading ? (
                 Array.from({ length: 8 }).map((_, i) => (
                   <tr key={i} className="border-b border-gray-50">
-                    {Array.from({ length: 3 }).map((_, j) => (
+                    {Array.from({ length: 2 }).map((_, j) => (
                       <td key={j} className="px-4 py-3">
                         <div className="h-4 bg-gray-100 rounded animate-pulse" style={{ width: `${50 + (j * 15) % 30}%` }} />
                       </td>
@@ -149,28 +129,31 @@ export default function Companies() {
                 ))
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={3} className="px-4 py-16 text-center text-gray-400 text-sm">
+                  <td colSpan={2} className="px-4 py-16 text-center text-gray-400 text-sm">
                     No companies match your search.
                   </td>
                 </tr>
               ) : (
                 filtered.map((c, idx) => (
                   <tr
-                    key={c.company}
+                    key={c.companyName}
                     className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${idx % 2 === 0 ? '' : 'bg-gray-50/40'}`}
                   >
-                    <td className="px-4 py-3 font-medium text-gray-900">{c.company}</td>
-                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
-                      {c.jobCount} position{c.jobCount !== 1 ? 's' : ''}
-                    </td>
+                    <td className="px-4 py-3 font-medium text-gray-900">{c.companyName}</td>
                     <td className="px-4 py-3">
-                      <Link
-                        to={`/jobs?company=${encodeURIComponent(c.company)}`}
-                        className="inline-flex items-center gap-1.5 text-indigo-600 hover:text-indigo-800 font-medium transition-colors whitespace-nowrap"
-                      >
-                        View Jobs
-                        <ArrowRight className="h-3.5 w-3.5" />
-                      </Link>
+                      {c.website ? (
+                        <a
+                          href={c.website}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 text-indigo-600 hover:text-indigo-800 font-medium transition-colors whitespace-nowrap"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                          Visit Website
+                        </a>
+                      ) : (
+                        <span className="text-gray-300">—</span>
+                      )}
                     </td>
                   </tr>
                 ))

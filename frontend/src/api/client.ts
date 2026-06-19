@@ -86,8 +86,8 @@ export const fetchJobMatches = async () => {
   return res.data;
 };
 
-export const fetchCompaniesWithJobs = async () => {
-  const res = await api.get('job-listings/companies');
+export const fetchCompanies = async (search?: string) => {
+  const res = await api.get('companies', { params: search ? { search } : undefined });
   return res.data;
 };
 
