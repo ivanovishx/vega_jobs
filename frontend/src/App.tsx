@@ -15,6 +15,7 @@ import CandidateProfile from './pages/CandidateProfile';
 import SavedJobs from './pages/SavedJobs';
 import ApplicationDetail from './pages/ApplicationDetail';
 import Jobs from './pages/Jobs';
+import Companies from './pages/Companies';
 import Admin from './pages/Admin';
 
 function Layout({ children }: { children: React.ReactNode }) {
@@ -99,6 +100,7 @@ function AppRoutes() {
               <Route path="/analyzer" element={<ProtectedRoute><JobAnalyzer /></ProtectedRoute>} />
               <Route path="/profile" element={<ProtectedRoute><CandidateProfile /></ProtectedRoute>} />
               <Route path="/jobs" element={<ProtectedRoute><Jobs /></ProtectedRoute>} />
+              <Route path="/companies" element={<ProtectedRoute><Companies /></ProtectedRoute>} />
               <Route path="/admin" element={<ProtectedRoute requireRole="ADMIN"><Admin /></ProtectedRoute>} />
             </Routes>
           </Layout>

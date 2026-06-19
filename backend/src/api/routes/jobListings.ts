@@ -18,6 +18,21 @@ router.get('/matches', async (req, res) => {
   }
 });
 
+router.get('/companies', async (_req, res) => {
+  try {
+    const companies = await prisma.$queryRaw<{ company: string; jobCount: number }[]>`
+      SELECT company, COUNT(*)::int AS "jobCount"
+      FROM "JobListings"
+      WHERE company IS NOT NULL AND company <> ''
+      GROUP BY company
+      ORDER BY company ASC
+    `;
+    res.json({ companies });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 const ALLOWED_SORT = ['company', 'jobTitle', 'location', 'scrapedAt'] as const;
 type SortCol = (typeof ALLOWED_SORT)[number];
 
