@@ -2,6 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { Home, Briefcase, FileSearch, User, Bookmark, X, LogOut, ListChecks, ShieldCheck, Building2 } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../context/AuthContext';
+import ThemeToggle from './ThemeToggle';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -36,15 +37,16 @@ export default function Sidebar({ isOpen, onClose, onOpenAuth }: SidebarProps) {
 
       <aside
         className={clsx(
-          'fixed inset-y-0 left-0 z-40 w-64 bg-white border-r flex flex-col transform transition-transform duration-200 ease-in-out',
+          'fixed inset-y-0 left-0 z-40 w-64 bg-white dark:bg-[#16161a] border-r flex flex-col transform transition-transform duration-200 ease-in-out',
           'lg:translate-x-0',
           isOpen ? 'translate-x-0' : '-translate-x-full'
         )}
         aria-label="Main navigation"
       >
         <div className="flex items-center justify-between h-16 border-b px-4">
-          <h1 className="text-xl font-bold text-indigo-600 tracking-tight">Vega</h1>
-          <div className="flex items-center gap-2">
+          <h1 className="text-xl font-bold text-indigo-600 dark:text-indigo-400 tracking-tight">Vega</h1>
+          <div className="flex items-center gap-1">
+            <ThemeToggle />
             {/* User avatar / login button */}
             <button
               type="button"
@@ -66,8 +68,8 @@ export default function Sidebar({ isOpen, onClose, onOpenAuth }: SidebarProps) {
                   </div>
                 )
               ) : (
-                <div className="w-7 h-7 rounded-full border-2 border-dashed border-gray-300 hover:border-indigo-500 flex items-center justify-center transition-colors group">
-                  <User className="h-3.5 w-3.5 text-gray-400 group-hover:text-indigo-500 transition-colors" />
+                <div className="w-7 h-7 rounded-full border-2 border-dashed border-gray-300 dark:border-white/15 hover:border-indigo-500 flex items-center justify-center transition-colors group">
+                  <User className="h-3.5 w-3.5 text-gray-400 dark:text-zinc-500 group-hover:text-indigo-500 dark:group-hover:text-indigo-400 transition-colors" />
                 </div>
               )}
             </button>
@@ -75,7 +77,7 @@ export default function Sidebar({ isOpen, onClose, onOpenAuth }: SidebarProps) {
             <button
               type="button"
               onClick={onClose}
-              className="lg:hidden text-gray-500 hover:text-gray-700"
+              className="lg:hidden text-gray-500 dark:text-zinc-400 hover:text-gray-700 dark:hover:text-zinc-200"
               aria-label="Close menu"
             >
               <X className="h-5 w-5" />
@@ -97,11 +99,11 @@ export default function Sidebar({ isOpen, onClose, onOpenAuth }: SidebarProps) {
                 className={clsx(
                   'flex items-center px-4 py-2 text-sm font-medium rounded-md',
                   isActive
-                    ? 'bg-indigo-50 text-indigo-700'
-                    : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                    ? 'bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300'
+                    : 'text-gray-700 dark:text-zinc-300 hover:bg-gray-100 dark:hover:bg-white/[0.08] hover:text-gray-900 dark:hover:text-zinc-100'
                 )}
               >
-                <Icon className={clsx('mr-3 h-5 w-5', isActive ? 'text-indigo-700' : 'text-gray-400')} />
+                <Icon className={clsx('mr-3 h-5 w-5', isActive ? 'text-indigo-700 dark:text-indigo-300' : 'text-gray-400 dark:text-zinc-500')} />
                 {link.name}
               </Link>
             );
@@ -109,18 +111,18 @@ export default function Sidebar({ isOpen, onClose, onOpenAuth }: SidebarProps) {
         </nav>
 
         <div className="px-4 py-2 border-t">
-          <p className="text-xs text-gray-400">Vega v2.0 — Chief of Staff</p>
+          <p className="text-xs text-gray-400 dark:text-zinc-500">Vega v2.0 — Chief of Staff</p>
         </div>
 
         {user && (
           <div className="px-4 py-3 border-t flex items-center gap-3">
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-gray-800 truncate">{user.name ?? user.email}</p>
-              <p className="text-xs text-gray-400 truncate">{user.email}</p>
+              <p className="text-sm font-medium text-gray-800 dark:text-zinc-100 truncate">{user.name ?? user.email}</p>
+              <p className="text-xs text-gray-400 dark:text-zinc-500 truncate">{user.email}</p>
             </div>
             <button
               onClick={logout}
-              className="flex items-center gap-1 text-xs text-gray-400 hover:text-red-500 transition-colors flex-shrink-0"
+              className="flex items-center gap-1 text-xs text-gray-400 dark:text-zinc-500 hover:text-red-500 dark:hover:text-red-400 transition-colors flex-shrink-0"
               title="Cerrar sesión"
             >
               <LogOut className="h-4 w-4" />

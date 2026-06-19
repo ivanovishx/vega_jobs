@@ -21,30 +21,30 @@ export default function ApplicationDetail() {
   return (
     <div className="space-y-6 max-w-4xl">
       <div>
-        <Link to="/applications" className="text-sm font-medium text-indigo-600 hover:text-indigo-500 flex items-center">
+        <Link to="/applications" className="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-400 flex items-center">
           <ArrowLeft className="h-4 w-4 mr-1" /> Back to Applications
         </Link>
       </div>
 
-      <div className="bg-white shadow overflow-hidden sm:rounded-lg">
+      <div className="bg-white dark:bg-[#16161a] shadow overflow-hidden sm:rounded-lg">
         <div className="px-4 py-5 sm:px-6 flex justify-between items-center">
           <div>
-            <h3 className="text-lg leading-6 font-medium text-gray-900">{app.jobTitle} at {app.companyName}</h3>
-            <p className="mt-1 max-w-2xl text-sm text-gray-500">Application details and pipeline status.</p>
+            <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-zinc-100">{app.jobTitle} at {app.companyName}</h3>
+            <p className="mt-1 max-w-2xl text-sm text-gray-500 dark:text-zinc-400">Application details and pipeline status.</p>
           </div>
-          <span className="inline-flex items-center rounded-full bg-green-100 px-3 py-1 text-sm font-medium text-green-800">
+          <span className="inline-flex items-center rounded-full bg-green-100 dark:bg-green-500/15 px-3 py-1 text-sm font-medium text-green-800 dark:text-green-300">
             {app.status}
           </span>
         </div>
-        <div className="border-t border-gray-200 px-4 py-5 sm:p-0">
-          <dl className="sm:divide-y sm:divide-gray-200">
+        <div className="border-t border-gray-200 dark:border-white/10 px-4 py-5 sm:p-0">
+          <dl className="sm:divide-y sm:divide-gray-200 dark:sm:divide-white/10">
             <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-              <dt className="text-sm font-medium text-gray-500">Match Score</dt>
-              <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2 font-bold">{app.matchScore || 'N/A'}%</dd>
+              <dt className="text-sm font-medium text-gray-500 dark:text-zinc-400">Match Score</dt>
+              <dd className="mt-1 text-sm text-gray-900 dark:text-zinc-100 sm:mt-0 sm:col-span-2 font-bold">{app.matchScore || 'N/A'}%</dd>
             </div>
             <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-              <dt className="text-sm font-medium text-gray-500">Next Action</dt>
-              <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2 flex items-center">
+              <dt className="text-sm font-medium text-gray-500 dark:text-zinc-400">Next Action</dt>
+              <dd className="mt-1 text-sm text-gray-900 dark:text-zinc-100 sm:mt-0 sm:col-span-2 flex items-center">
                 {app.nextAction ? (
                   <>
                     <Clock className="h-4 w-4 mr-1 text-yellow-500" />

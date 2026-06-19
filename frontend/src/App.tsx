@@ -6,6 +6,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import ImpersonationBanner from './components/ImpersonationBanner';
 import Sidebar from './components/Sidebar';
 import AuthModal from './components/AuthModal';
+import ThemeToggle from './components/ThemeToggle';
 import Login from './pages/Login';
 import Home from './pages/Home';
 import Dashboard from './pages/Dashboard';
@@ -24,7 +25,7 @@ function Layout({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-[#0b0b0e]">
       <ImpersonationBanner />
       <Sidebar
         isOpen={sidebarOpen}
@@ -34,18 +35,20 @@ function Layout({ children }: { children: React.ReactNode }) {
 
       <div className="lg:ml-64 flex flex-col min-h-screen">
         {/* Mobile header */}
-        <header className="lg:hidden sticky top-0 z-20 flex h-14 items-center justify-between bg-white border-b px-4">
+        <header className="lg:hidden sticky top-0 z-20 flex h-14 items-center justify-between bg-white dark:bg-[#16161a] border-b px-4">
           <button
             type="button"
             onClick={() => setSidebarOpen(true)}
-            className="text-gray-600 hover:text-gray-900"
+            className="text-gray-600 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-zinc-100"
             aria-label="Open menu"
           >
             <Menu className="h-6 w-6" />
           </button>
 
-          <h1 className="text-lg font-bold text-indigo-600 tracking-tight">Vega</h1>
+          <h1 className="text-lg font-bold text-indigo-600 dark:text-indigo-400 tracking-tight">Vega</h1>
 
+          <div className="flex items-center gap-1">
+          <ThemeToggle />
           <button
             type="button"
             onClick={() => !user && setAuthModalOpen(true)}
@@ -66,11 +69,12 @@ function Layout({ children }: { children: React.ReactNode }) {
                 </div>
               )
             ) : (
-              <div className="w-7 h-7 rounded-full border-2 border-gray-300 flex items-center justify-center text-gray-500 hover:border-indigo-500 hover:text-indigo-500 transition-colors">
+              <div className="w-7 h-7 rounded-full border-2 border-gray-300 dark:border-white/15 flex items-center justify-center text-gray-500 dark:text-zinc-400 hover:border-indigo-500 hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors">
                 <User className="h-4 w-4" />
               </div>
             )}
           </button>
+          </div>
         </header>
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8">
