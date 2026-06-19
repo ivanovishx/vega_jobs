@@ -32,8 +32,8 @@ router.get('/', async (req, res) => {
         `SELECT COUNT(*) as count FROM "CompanyDirectory" ${where}`,
         ...searchParams
       ),
-      prisma.$queryRawUnsafe<{ id: string; name: string | null; rank: number | null; website: string | null; description1: string | null }[]>(
-        `SELECT id, name, rank, website, description1
+      prisma.$queryRawUnsafe<{ id: string; name: string | null; rank: number | null; website: string | null; description1: string | null; crunchbaseLink: string | null; linkCareers1: string | null; linkCareers2: string | null }[]>(
+        `SELECT id, name, rank, website, description1, "crunchbaseLink", "linkCareers1", "linkCareers2"
          FROM "CompanyDirectory"
          ${where}
          ORDER BY "${col}" ${dir} NULLS LAST

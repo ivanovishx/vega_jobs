@@ -8,6 +8,9 @@ interface CompanyRow {
   rank: number | null;
   website: string | null;
   description1: string | null;
+  crunchbaseLink: string | null;
+  linkCareers1: string | null;
+  linkCareers2: string | null;
 }
 
 type SortCol = 'rank' | 'name' | 'website';
@@ -19,11 +22,57 @@ function normalizeUrl(url: string): string {
   return /^https?:\/\//i.test(url) ? url : `https://${url}`;
 }
 
+function displayUrl(url: string): string {
+  return url.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '');
+}
+
 function SortIcon({ col, sortBy, sortDir }: { col: SortCol; sortBy: SortCol; sortDir: SortDir }) {
   if (col !== sortBy) return <ChevronsUpDown className="h-3 w-3 text-gray-300 ml-1 shrink-0" />;
   return sortDir === 'asc'
     ? <ChevronUp className="h-3 w-3 text-indigo-500 ml-1 shrink-0" />
     : <ChevronDown className="h-3 w-3 text-indigo-500 ml-1 shrink-0" />;
+}
+
+interface PaginationBarProps {
+  page: number;
+  totalPages: number;
+  total: number;
+  limit: number;
+  onPageChange: (p: number) => void;
+  onLimitChange: (l: number) => void;
+  position: 'top' | 'bottom';
+}
+
+function PaginationBar({ page, totalPages, total, limit, onPageChange, onLimitChange, position }: PaginationBarProps) {
+  const borderClass = position === 'top' ? 'border-b' : 'border-t';
+  return (
+    <div className={`flex items-center justify-between px-4 py-2.5 ${borderClass} border-gray-100 flex-wrap gap-2`}>
+      <div className="flex items-center gap-2 text-xs text-gray-500 shrink-0">
+        <span>Companies per page:</span>
+        <select
+          value={limit}
+          onChange={e => onLimitChange(Number(e.target.value))}
+          className="border border-gray-200 rounded-md px-1.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        >
+          {PAGE_SIZE_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <span className="ml-2 hidden sm:inline">
+          {((page - 1) * limit + 1).toLocaleString()}–{Math.min(page * limit, total).toLocaleString()} of {total.toLocaleString()}
+        </span>
+      </div>
+      <div className="flex items-center gap-1">
+        <button onClick={() => onPageChange(1)} disabled={page === 1}
+          className="px-2 py-1 text-xs font-medium text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">«</button>
+        <button onClick={() => onPageChange(page - 1)} disabled={page === 1}
+          className="px-2.5 py-1 text-xs font-medium text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">‹ Prev</button>
+        <span className="px-3 py-1 text-xs text-gray-500 select-none">{page} / {totalPages.toLocaleString()}</span>
+        <button onClick={() => onPageChange(page + 1)} disabled={page >= totalPages}
+          className="px-2.5 py-1 text-xs font-medium text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">Next ›</button>
+        <button onClick={() => onPageChange(totalPages)} disabled={page >= totalPages}
+          className="px-2 py-1 text-xs font-medium text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">»</button>
+      </div>
+    </div>
+  );
 }
 
 export default function Companies() {
@@ -42,6 +91,8 @@ export default function Companies() {
   const [error, setError] = useState<string | null>(null);
   const isFirstLoad = useRef(true);
 
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+
   // Debounce search → reset to page 1
   useEffect(() => {
     const t = setTimeout(() => {
@@ -50,6 +101,22 @@ export default function Companies() {
     }, 400);
     return () => clearTimeout(t);
   }, [search]);
+
+  // Keyboard shortcuts: Shift+Ctrl+Arrow to change page
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (!e.shiftKey || !e.ctrlKey) return;
+      if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        setPage(p => Math.min(p + 1, totalPages));
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        setPage(p => Math.max(p - 1, 1));
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [totalPages]);
 
   const load = useCallback(async () => {
     if (!isFirstLoad.current) setFetching(true);
@@ -89,7 +156,8 @@ export default function Companies() {
     setPage(1);
   };
 
-  const totalPages = Math.max(1, Math.ceil(total / limit));
+  const handlePageChange = (p: number) => setPage(Math.max(1, Math.min(p, totalPages)));
+  const handleLimitChange = (l: number) => { setLimit(l); setPage(1); };
 
   if (error) {
     return <div className="flex items-center justify-center h-64 text-red-500 text-sm">{error}</div>;
@@ -97,10 +165,13 @@ export default function Companies() {
 
   const colHeaders: { key: SortCol | null; label: string }[] = [
     { key: 'rank', label: 'Rank' },
-    { key: 'name', label: 'Company Name' },
-    { key: null, label: 'Description' },
+    { key: 'name', label: 'Company' },
     { key: 'website', label: 'Website' },
+    { key: null, label: 'Description' },
+    { key: null, label: 'Careers' },
   ];
+
+  const paginationProps = { page, totalPages, total, limit, onPageChange: handlePageChange, onLimitChange: handleLimitChange };
 
   return (
     <div className="space-y-5">
@@ -139,9 +210,9 @@ export default function Companies() {
         </div>
       </div>
 
-      {/* Search + page size */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-4 flex-wrap">
-        <div className="relative flex-1 min-w-48 max-w-sm">
+      {/* Search */}
+      <div className="bg-white rounded-xl border border-gray-200 p-4">
+        <div className="relative max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
           <input
             type="text"
@@ -151,20 +222,16 @@ export default function Companies() {
             className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
           />
         </div>
-        <div className="flex items-center gap-2 text-sm text-gray-500 shrink-0">
-          <span>Rows per page:</span>
-          <select
-            value={limit}
-            onChange={e => { setLimit(Number(e.target.value)); setPage(1); }}
-            className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          >
-            {PAGE_SIZE_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </div>
       </div>
 
-      {/* Table */}
+      {/* Table card */}
       <div className={`bg-white rounded-xl border border-gray-200 overflow-hidden transition-opacity ${fetching ? 'opacity-60' : 'opacity-100'}`}>
+
+        {/* Top pagination */}
+        {!loading && (
+          <PaginationBar {...paginationProps} position="top" />
+        )}
+
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -187,16 +254,16 @@ export default function Companies() {
               {loading ? (
                 Array.from({ length: 8 }).map((_, i) => (
                   <tr key={i} className="border-b border-gray-50">
-                    {Array.from({ length: 4 }).map((_, j) => (
+                    {Array.from({ length: 5 }).map((_, j) => (
                       <td key={j} className="px-4 py-3">
-                        <div className="h-4 bg-gray-100 rounded animate-pulse" style={{ width: `${40 + (j * 15) % 40}%` }} />
+                        <div className="h-4 bg-gray-100 rounded animate-pulse" style={{ width: `${40 + (j * 12) % 45}%` }} />
                       </td>
                     ))}
                   </tr>
                 ))
               ) : companies.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-4 py-16 text-center text-gray-400 text-sm">
+                  <td colSpan={5} className="px-4 py-16 text-center text-gray-400 text-sm">
                     No companies match your search.
                   </td>
                 </tr>
@@ -206,29 +273,82 @@ export default function Companies() {
                     key={c.id}
                     className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${idx % 2 !== 0 ? 'bg-gray-50/40' : ''}`}
                   >
-                    <td className="px-4 py-3 text-gray-400 font-mono text-xs tabular-nums w-16">
+                    {/* Rank */}
+                    <td className="px-4 py-3 text-gray-400 font-mono text-xs tabular-nums w-14 shrink-0">
                       {c.rank ?? '—'}
                     </td>
+
+                    {/* Company name → crunchbaseLink */}
                     <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">
-                      {c.name ?? '—'}
+                      {c.crunchbaseLink ? (
+                        <a
+                          href={normalizeUrl(c.crunchbaseLink)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:text-indigo-600 transition-colors"
+                        >
+                          {c.name ?? '—'}
+                        </a>
+                      ) : (
+                        c.name ?? '—'
+                      )}
                     </td>
-                    <td className="px-4 py-3 text-gray-500 max-w-sm">
-                      {c.description1
-                        ? <span className="line-clamp-2 text-xs leading-relaxed">{c.description1}</span>
-                        : <span className="text-gray-300">—</span>
-                      }
-                    </td>
-                    <td className="px-4 py-3">
+
+                    {/* Website — show URL */}
+                    <td className="px-4 py-3 max-w-[180px]">
                       {c.website ? (
                         <a
                           href={normalizeUrl(c.website)}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 text-indigo-600 hover:text-indigo-800 font-medium transition-colors whitespace-nowrap text-xs"
+                          className="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800 transition-colors text-xs truncate max-w-full"
+                          title={c.website}
                         >
-                          <ExternalLink className="h-3.5 w-3.5" />
-                          Visit
+                          <ExternalLink className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{displayUrl(c.website)}</span>
                         </a>
+                      ) : (
+                        <span className="text-gray-300">—</span>
+                      )}
+                    </td>
+
+                    {/* Description */}
+                    <td className="px-4 py-3 text-gray-500 max-w-xs">
+                      {c.description1
+                        ? <span className="line-clamp-2 text-xs leading-relaxed">{c.description1}</span>
+                        : <span className="text-gray-300">—</span>
+                      }
+                    </td>
+
+                    {/* Careers */}
+                    <td className="px-4 py-3">
+                      {c.linkCareers1 || c.linkCareers2 ? (
+                        <div className="flex flex-col gap-1">
+                          {c.linkCareers1 && (
+                            <a
+                              href={normalizeUrl(c.linkCareers1)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-emerald-600 hover:text-emerald-800 transition-colors text-xs truncate max-w-[160px]"
+                              title={c.linkCareers1}
+                            >
+                              <ExternalLink className="h-3 w-3 shrink-0" />
+                              <span className="truncate">{displayUrl(c.linkCareers1)}</span>
+                            </a>
+                          )}
+                          {c.linkCareers2 && (
+                            <a
+                              href={normalizeUrl(c.linkCareers2)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-emerald-600 hover:text-emerald-800 transition-colors text-xs truncate max-w-[160px]"
+                              title={c.linkCareers2}
+                            >
+                              <ExternalLink className="h-3 w-3 shrink-0" />
+                              <span className="truncate">{displayUrl(c.linkCareers2)}</span>
+                            </a>
+                          )}
+                        </div>
                       ) : (
                         <span className="text-gray-300">—</span>
                       )}
@@ -240,40 +360,16 @@ export default function Companies() {
           </table>
         </div>
 
-        {/* Pagination */}
-        {!loading && totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
-            <p className="text-xs text-gray-500">
-              {((page - 1) * limit + 1).toLocaleString()}–{Math.min(page * limit, total).toLocaleString()} of {total.toLocaleString()}
-            </p>
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => setPage(1)}
-                disabled={page === 1}
-                className="px-2 py-1 text-xs font-medium text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
-              >«</button>
-              <button
-                onClick={() => setPage(p => p - 1)}
-                disabled={page === 1}
-                className="px-2.5 py-1 text-xs font-medium text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
-              >‹ Prev</button>
-              <span className="px-3 py-1 text-xs text-gray-500">
-                {page} / {totalPages.toLocaleString()}
-              </span>
-              <button
-                onClick={() => setPage(p => p + 1)}
-                disabled={page >= totalPages}
-                className="px-2.5 py-1 text-xs font-medium text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
-              >Next ›</button>
-              <button
-                onClick={() => setPage(totalPages)}
-                disabled={page >= totalPages}
-                className="px-2 py-1 text-xs font-medium text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
-              >»</button>
-            </div>
-          </div>
+        {/* Bottom pagination */}
+        {!loading && (
+          <PaginationBar {...paginationProps} position="bottom" />
         )}
       </div>
+
+      {/* Keyboard hint */}
+      <p className="text-xs text-gray-400 text-right">
+        Tip: <kbd className="px-1 py-0.5 bg-gray-100 rounded text-gray-500 font-mono">Shift+Ctrl+←/→</kbd> to navigate pages
+      </p>
     </div>
   );
 }
