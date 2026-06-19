@@ -7,6 +7,10 @@ interface CompanyRow {
   website: string | null;
 }
 
+function normalizeUrl(url: string): string {
+  return /^https?:\/\//i.test(url) ? url : `https://${url}`;
+}
+
 export default function Companies() {
   const [companies, setCompanies] = useState<CompanyRow[]>([]);
   const [search, setSearch] = useState('');
@@ -143,7 +147,7 @@ export default function Companies() {
                     <td className="px-4 py-3">
                       {c.website ? (
                         <a
-                          href={c.website}
+                          href={normalizeUrl(c.website)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-1.5 text-indigo-600 hover:text-indigo-800 font-medium transition-colors whitespace-nowrap"
