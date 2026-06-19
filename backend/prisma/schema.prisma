@@ -6,6 +6,11 @@ datasource db {
   provider = "postgresql"
 }
 
+enum Role {
+  USER
+  ADMIN
+}
+
 model User {
   id               String            @id @default(uuid())
   email            String            @unique
@@ -13,12 +18,25 @@ model User {
   picture          String?
   googleId         String?           @unique
   passwordHash     String?
+  role             Role              @default(USER)
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
   candidateProfile CandidateProfile?
   jobs             Job[]
   applications     Application[]
   resumes          Resume[]
+  impersonationsAsAdmin  ImpersonationLog[] @relation("ImpersonationAdmin")
+  impersonationsAsTarget ImpersonationLog[] @relation("ImpersonationTarget")
+}
+
+model ImpersonationLog {
+  id          String    @id @default(uuid())
+  adminId     String
+  admin       User      @relation("ImpersonationAdmin", fields: [adminId], references: [id])
+  targetId    String
+  target      User      @relation("ImpersonationTarget", fields: [targetId], references: [id])
+  startedAt   DateTime  @default(now())
+  endedAt     DateTime?
 }
 
 model CandidateProfile {

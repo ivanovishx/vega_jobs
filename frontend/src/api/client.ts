@@ -86,4 +86,19 @@ export const fetchJobMatches = async () => {
   return res.data;
 };
 
+export const fetchAdminUsers = async (search?: string) => {
+  const res = await api.get('admin/users', { params: search ? { search } : undefined });
+  return res.data;
+};
+
+export const fetchAdminUserProfile = async (userId: string) => {
+  const res = await api.get(`admin/users/${userId}/profile`);
+  return res.data;
+};
+
+export const startImpersonation = async (userId: string) => {
+  const res = await api.post(`admin/impersonate/${userId}`);
+  return res.data;
+};
+
 export default api;

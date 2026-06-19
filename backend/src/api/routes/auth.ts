@@ -155,17 +155,35 @@ router.post('/login', async (req: Request, res: Response) => {
 // ── Session ───────────────────────────────────────────────────────────────────
 
 router.get('/me', async (req: Request, res: Response) => {
+  const impersonationToken = req.cookies?.impersonation_token;
   const token = req.cookies?.token || req.headers.authorization?.replace('Bearer ', '');
+
+  if (impersonationToken) {
+    try {
+      const payload = jwt.verify(impersonationToken, JWT_SECRET) as { adminId: string; targetId: string };
+      const target = await prisma.user.findUnique({
+        where: { id: payload.targetId },
+        select: { id: true, email: true, name: true, picture: true, role: true },
+      });
+      if (!target) { res.status(401).json({ error: 'User not found' }); return; }
+      res.json({ ...target, impersonating: true, adminId: payload.adminId });
+      return;
+    } catch {
+      res.status(401).json({ error: 'Invalid impersonation token' });
+      return;
+    }
+  }
+
   if (!token) { res.status(401).json({ error: 'Not authenticated' }); return; }
 
   try {
     const payload = jwt.verify(token, JWT_SECRET) as { userId: string };
     const user = await prisma.user.findUnique({
       where: { id: payload.userId },
-      select: { id: true, email: true, name: true, picture: true },
+      select: { id: true, email: true, name: true, picture: true, role: true },
     });
     if (!user) { res.status(401).json({ error: 'User not found' }); return; }
-    res.json(user);
+    res.json({ ...user, impersonating: false });
   } catch {
     res.status(401).json({ error: 'Invalid token' });
   }
