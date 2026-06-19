@@ -91,8 +91,8 @@ export const fetchCompaniesWithJobs = async () => {
   return res.data;
 };
 
-export const fetchAdminUsers = async (search?: string) => {
-  const res = await api.get('admin/users', { params: search ? { search } : undefined });
+export const fetchAdminUsers = async (params?: { search?: string; page?: number; limit?: number }) => {
+  const res = await api.get('admin/users', { params });
   return res.data;
 };
 
