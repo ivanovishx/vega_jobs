@@ -26,6 +26,12 @@ function displayUrl(url: string): string {
   return url.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '');
 }
 
+function isValidUrl(url: string | null | undefined): url is string {
+  if (!url || !url.trim()) return false;
+  try { return Boolean(new URL(url.startsWith('http') ? url : `https://${url}`)); }
+  catch { return false; }
+}
+
 function SortIcon({ col, sortBy, sortDir }: { col: SortCol; sortBy: SortCol; sortDir: SortDir }) {
   if (col !== sortBy) return <ChevronsUpDown className="h-3 w-3 text-gray-300 ml-1 shrink-0" />;
   return sortDir === 'asc'
@@ -47,7 +53,12 @@ function PaginationBar({ page, totalPages, total, limit, onPageChange, onLimitCh
   const borderClass = position === 'top' ? 'border-b' : 'border-t';
   return (
     <div className={`flex items-center justify-between px-4 py-2.5 ${borderClass} border-gray-100 flex-wrap gap-2`}>
-      <div className="flex items-center gap-2 text-xs text-gray-500 shrink-0">
+      <div className="flex items-center gap-2 text-xs text-gray-500 shrink-0 flex-wrap">
+        {position === 'top' && (
+          <span className="text-gray-400 pr-2 border-r border-gray-200 mr-1">
+            <kbd className="px-1 py-0.5 bg-gray-100 rounded font-mono text-gray-500">Shift+Ctrl+←/→</kbd> to navigate
+          </span>
+        )}
         <span>Companies per page:</span>
         <select
           value={limit}
@@ -322,9 +333,9 @@ export default function Companies() {
 
                     {/* Careers */}
                     <td className="px-4 py-3">
-                      {c.linkCareers1 || c.linkCareers2 ? (
+                      {isValidUrl(c.linkCareers1) || isValidUrl(c.linkCareers2) ? (
                         <div className="flex flex-col gap-1">
-                          {c.linkCareers1 && (
+                          {isValidUrl(c.linkCareers1) && (
                             <a
                               href={normalizeUrl(c.linkCareers1)}
                               target="_blank"
@@ -336,7 +347,7 @@ export default function Companies() {
                               <span className="truncate">{displayUrl(c.linkCareers1)}</span>
                             </a>
                           )}
-                          {c.linkCareers2 && (
+                          {isValidUrl(c.linkCareers2) && (
                             <a
                               href={normalizeUrl(c.linkCareers2)}
                               target="_blank"
@@ -366,10 +377,6 @@ export default function Companies() {
         )}
       </div>
 
-      {/* Keyboard hint */}
-      <p className="text-xs text-gray-400 text-right">
-        Tip: <kbd className="px-1 py-0.5 bg-gray-100 rounded text-gray-500 font-mono">Shift+Ctrl+←/→</kbd> to navigate pages
-      </p>
     </div>
   );
 }
