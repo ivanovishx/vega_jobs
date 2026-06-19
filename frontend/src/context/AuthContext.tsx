@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
 
 interface User {
   id: string;
@@ -23,6 +24,7 @@ const API_BASE = import.meta.env.VITE_API_URL?.replace(/\/api\/?$/, '') || 'http
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
   const refreshUser = async () => {
     try {
@@ -40,6 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     await axios.post(`${API_BASE}/auth/logout`, {}, { withCredentials: true });
     setUser(null);
+    navigate('/', { replace: true });
   };
 
   return (

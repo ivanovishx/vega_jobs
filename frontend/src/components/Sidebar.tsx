@@ -14,7 +14,7 @@ export default function Sidebar({ isOpen, onClose, onOpenAuth }: SidebarProps) {
   const { user, logout } = useAuth();
 
   const links = [
-    { name: 'Dashboard', path: '/', icon: Home },
+    { name: 'Dashboard', path: '/dashboard', icon: Home },
     { name: 'Applications', path: '/applications', icon: Briefcase },
     { name: 'Positions to Apply', path: '/saved-jobs', icon: Bookmark },
     { name: 'Job Analyzer', path: '/analyzer', icon: FileSearch },
@@ -86,7 +86,7 @@ export default function Sidebar({ isOpen, onClose, onOpenAuth }: SidebarProps) {
             const Icon = link.icon;
             const isActive =
               location.pathname === link.path ||
-              (link.path !== '/' && location.pathname.startsWith(link.path));
+              (link.path !== '/dashboard' && location.pathname.startsWith(link.path));
             return (
               <Link
                 key={link.name}
