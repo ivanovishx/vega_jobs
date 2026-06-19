@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import { fetchJobListings, fetchJobMatches } from '../api/client';
 import {
   ArrowUpDown,
@@ -206,9 +205,8 @@ export default function Jobs() {
   const matchesFetched = useRef(false);
 
   // Filters
-  const [searchParams] = useSearchParams();
   const [search, setSearch] = useState('');
-  const [companyFilter, setCompanyFilter] = useState(searchParams.get('company') ?? '');
+  const [companyFilter, setCompanyFilter] = useState('');
   const [locationFilter, setLocationFilter] = useState('');
   const [jobTitleSearch, setJobTitleSearch] = useState('');
 
