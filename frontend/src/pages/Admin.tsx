@@ -99,22 +99,30 @@ function StatCard({ label, value, accent }: { label: string; value: number; acce
   );
 }
 
+const PAGE_SIZE = 20;
+
 export default function Admin() {
   const navigate = useNavigate();
   const { refreshUser } = useAuth();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [search, setSearch] = useState('');
+  const [appliedSearch, setAppliedSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
   const [selectedUser, setSelectedUser] = useState<AdminUserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [impersonatingId, setImpersonatingId] = useState<string | null>(null);
   const [showAllApps, setShowAllApps] = useState(false);
 
-  const loadUsers = async (q?: string) => {
+  const loadUsers = async (q: string | undefined, p: number) => {
     setLoading(true);
     try {
-      const data = await fetchAdminUsers(q);
-      setUsers(data);
+      const data = await fetchAdminUsers({ search: q, page: p, limit: PAGE_SIZE });
+      setUsers(data.users);
+      setTotal(data.total);
+      setTotalPages(data.totalPages);
     } catch (err) {
       console.error(err);
     } finally {
@@ -123,12 +131,13 @@ export default function Admin() {
   };
 
   useEffect(() => {
-    loadUsers();
-  }, []);
+    loadUsers(appliedSearch || undefined, page);
+  }, [appliedSearch, page]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    loadUsers(search.trim() || undefined);
+    setPage(1);
+    setAppliedSearch(search.trim());
   };
 
   const handleViewProfile = async (userId: string) => {
@@ -219,6 +228,31 @@ export default function Admin() {
           </tbody>
         </table>
       </div>
+
+      {!loading && total > 0 && (
+        <div className="flex items-center justify-between mt-3 text-sm text-gray-500">
+          <span>
+            Mostrando {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} de {total}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page <= 1}
+              className="px-3 py-1 rounded border border-gray-300 disabled:opacity-40 hover:bg-gray-50"
+            >
+              Anterior
+            </button>
+            <span>Página {page} de {totalPages}</span>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages}
+              className="px-3 py-1 rounded border border-gray-300 disabled:opacity-40 hover:bg-gray-50"
+            >
+              Siguiente
+            </button>
+          </div>
+        </div>
+      )}
 
       {(selectedUser || loadingProfile) && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => setSelectedUser(null)}>
