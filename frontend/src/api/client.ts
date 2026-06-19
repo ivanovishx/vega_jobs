@@ -86,8 +86,14 @@ export const fetchJobMatches = async () => {
   return res.data;
 };
 
-export const fetchCompanies = async (search?: string) => {
-  const res = await api.get('companies', { params: search ? { search } : undefined });
+export const fetchCompanies = async (params?: {
+  search?: string;
+  page?: number;
+  limit?: number;
+  sortBy?: string;
+  sortDir?: string;
+}) => {
+  const res = await api.get('companies', { params });
   return res.data;
 };
 
