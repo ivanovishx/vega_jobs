@@ -27,7 +27,9 @@ function displayUrl(url: string): string {
 }
 
 function isValidUrl(url: string | null | undefined): url is string {
-  if (!url || !url.trim()) return false;
+  if (!url) return false;
+  const s = url.trim().toLowerCase();
+  if (!s || s === 'null' || s === 'undefined' || s === 'n/a') return false;
   try { return Boolean(new URL(url.startsWith('http') ? url : `https://${url}`)); }
   catch { return false; }
 }
