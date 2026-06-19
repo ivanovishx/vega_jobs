@@ -102,7 +102,12 @@ router.post('/impersonate/end', async (req: AuthRequest, res: Response) => {
     data: { endedAt: new Date() },
   });
 
-  res.clearCookie('impersonation_token');
+  const isProd = process.env.NODE_ENV === 'production';
+  res.clearCookie('impersonation_token', {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'lax',
+  });
   res.json({ ok: true });
 });
 
