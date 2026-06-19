@@ -190,7 +190,12 @@ router.get('/me', async (req: Request, res: Response) => {
 });
 
 router.post('/logout', (_req: Request, res: Response) => {
-  res.clearCookie('token');
+  const isProd = process.env.NODE_ENV === 'production';
+  res.clearCookie('token', {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'lax',
+  });
   res.json({ ok: true });
 });
 
