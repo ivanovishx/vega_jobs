@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Mail, Lock } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+import ThemeToggle from '../components/ThemeToggle';
 
 const API_BASE = import.meta.env.VITE_API_URL?.replace(/\/api\/?$/, '') || 'http://localhost:3001';
 
@@ -14,8 +15,11 @@ export default function Login() {
   const error = params.get('error');
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 w-full max-w-sm overflow-hidden">
+    <div className="min-h-screen bg-gray-50 dark:bg-[#0b0b0e] flex items-center justify-center px-4">
+      <div className="absolute top-4 right-4">
+        <ThemeToggle />
+      </div>
+      <div className="bg-white dark:bg-[#16161a] rounded-2xl shadow-sm border border-gray-200 dark:border-white/10 w-full max-w-sm overflow-hidden">
         <div className="bg-gradient-to-br from-indigo-600 to-indigo-700 px-6 pt-6 pb-8">
           <h1 className="text-2xl font-bold text-white tracking-tight mb-1">Vega</h1>
           <p className="text-indigo-200 text-sm">
@@ -28,8 +32,8 @@ export default function Login() {
             onClick={() => setTab('login')}
             className={`flex-1 py-3 text-sm font-medium transition-colors ${
               tab === 'login'
-                ? 'text-indigo-600 border-b-2 border-indigo-600 bg-white'
-                : 'text-gray-500 hover:text-gray-700 bg-gray-50'
+                ? 'text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 bg-white dark:bg-[#16161a]'
+                : 'text-gray-500 dark:text-zinc-400 hover:text-gray-700 dark:hover:text-zinc-200 bg-gray-50 dark:bg-white/[0.04]'
             }`}
           >
             Iniciar sesión
@@ -38,8 +42,8 @@ export default function Login() {
             onClick={() => setTab('register')}
             className={`flex-1 py-3 text-sm font-medium transition-colors ${
               tab === 'register'
-                ? 'text-indigo-600 border-b-2 border-indigo-600 bg-white'
-                : 'text-gray-500 hover:text-gray-700 bg-gray-50'
+                ? 'text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 bg-white dark:bg-[#16161a]'
+                : 'text-gray-500 dark:text-zinc-400 hover:text-gray-700 dark:hover:text-zinc-200 bg-gray-50 dark:bg-white/[0.04]'
             }`}
           >
             Crear cuenta
@@ -48,9 +52,9 @@ export default function Login() {
 
         <div className="p-6">
           {error && (
-            <div className="mb-4 flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-              <span className="text-red-500 text-xs mt-0.5">⚠</span>
-              <p className="text-red-600 text-xs">Error al iniciar sesión. Intenta de nuevo.</p>
+            <div className="mb-4 flex items-start gap-2 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-lg px-3 py-2">
+              <span className="text-red-500 dark:text-red-400 text-xs mt-0.5">⚠</span>
+              <p className="text-red-600 dark:text-red-400 text-xs">Error al iniciar sesión. Intenta de nuevo.</p>
             </div>
           )}
 
@@ -114,7 +118,7 @@ function LoginForm() {
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-zinc-500 hover:text-gray-600 dark:hover:text-zinc-300"
             >
               {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
@@ -200,7 +204,7 @@ function RegisterForm({ onSwitchTab }: { onSwitchTab: () => void }) {
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-zinc-500 hover:text-gray-600 dark:hover:text-zinc-300"
             >
               {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
@@ -214,9 +218,9 @@ function RegisterForm({ onSwitchTab }: { onSwitchTab: () => void }) {
         </button>
       </form>
 
-      <p className="text-center text-sm text-gray-500 mt-4">
+      <p className="text-center text-sm text-gray-500 dark:text-zinc-400 mt-4">
         ¿Ya tienes cuenta?{' '}
-        <button onClick={onSwitchTab} className="text-indigo-600 font-medium hover:underline">
+        <button onClick={onSwitchTab} className="text-indigo-600 dark:text-indigo-400 font-medium hover:underline">
           Inicia sesión
         </button>
       </p>
@@ -228,7 +232,7 @@ function GoogleButton() {
   return (
     <a
       href={`${API_BASE}/auth/google`}
-      className="flex items-center justify-center gap-3 w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+      className="flex items-center justify-center gap-3 w-full border border-gray-300 dark:border-white/15 rounded-xl px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-zinc-300 hover:bg-gray-50 dark:hover:bg-white/[0.05] transition-colors"
     >
       <GoogleIcon />
       Continuar con Google
@@ -239,9 +243,9 @@ function GoogleButton() {
 function Divider() {
   return (
     <div className="flex items-center gap-3 my-4">
-      <div className="flex-1 h-px bg-gray-200" />
-      <span className="text-xs text-gray-400 font-medium">o con tu correo</span>
-      <div className="flex-1 h-px bg-gray-200" />
+      <div className="flex-1 h-px bg-gray-200 dark:bg-white/[0.09]" />
+      <span className="text-xs text-gray-400 dark:text-zinc-500 font-medium">o con tu correo</span>
+      <div className="flex-1 h-px bg-gray-200 dark:bg-white/[0.09]" />
     </div>
   );
 }
@@ -249,8 +253,8 @@ function Divider() {
 function Field({ icon, label, children }: { icon?: React.ReactNode; label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-600 mb-1.5">
-        {icon && <span className="text-gray-400">{icon}</span>}
+      <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-600 dark:text-zinc-400 mb-1.5">
+        {icon && <span className="text-gray-400 dark:text-zinc-500">{icon}</span>}
         {label}
       </label>
       {children}
@@ -260,9 +264,9 @@ function Field({ icon, label, children }: { icon?: React.ReactNode; label: strin
 
 function ErrorMsg({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-      <span className="text-red-500 text-xs mt-0.5">⚠</span>
-      <p className="text-red-600 text-xs">{children}</p>
+    <div className="flex items-start gap-2 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-lg px-3 py-2">
+      <span className="text-red-500 dark:text-red-400 text-xs mt-0.5">⚠</span>
+      <p className="text-red-600 dark:text-red-400 text-xs">{children}</p>
     </div>
   );
 }

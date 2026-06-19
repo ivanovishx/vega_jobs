@@ -75,18 +75,18 @@ function formatDate(iso: string | null) {
 }
 
 function scoreColor(score: number): string {
-  if (score >= 70) return 'bg-emerald-100 text-emerald-700';
-  if (score >= 40) return 'bg-amber-100 text-amber-700';
-  return 'bg-red-100 text-red-600';
+  if (score >= 70) return 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300';
+  if (score >= 40) return 'bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300';
+  return 'bg-red-100 dark:bg-red-500/15 text-red-600 dark:text-red-400';
 }
 
 // ── Sub-components ───────────────────────────────────────────────────────────
 
 function SortIcon({ col, sortBy, sortDir }: { col: SortCol; sortBy: SortCol; sortDir: SortDir }) {
-  if (sortBy !== col) return <ArrowUpDown className="h-3.5 w-3.5 text-gray-400" />;
+  if (sortBy !== col) return <ArrowUpDown className="h-3.5 w-3.5 text-gray-400 dark:text-zinc-500" />;
   return sortDir === 'asc'
-    ? <ArrowUp className="h-3.5 w-3.5 text-indigo-600" />
-    : <ArrowDown className="h-3.5 w-3.5 text-indigo-600" />;
+    ? <ArrowUp className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+    : <ArrowDown className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />;
 }
 
 function MatchBadge({ job, onClick }: { job: JobMatch; onClick: () => void }) {
@@ -115,38 +115,38 @@ function MatchPanel({ job, onClose }: { job: JobMatch; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30" onClick={onClose}>
       <div
-        className="bg-white rounded-2xl border border-gray-200 shadow-xl w-full max-w-md p-6 space-y-5"
+        className="bg-white dark:bg-[#16161a] rounded-2xl border border-gray-200 dark:border-white/10 shadow-xl w-full max-w-md p-6 space-y-5"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">{job.company}</p>
-            <h3 className="text-base font-semibold text-gray-900 mt-0.5 leading-snug">{job.jobTitle}</h3>
+            <p className="text-xs text-gray-400 dark:text-zinc-500 font-medium uppercase tracking-wide">{job.company}</p>
+            <h3 className="text-base font-semibold text-gray-900 dark:text-zinc-100 mt-0.5 leading-snug">{job.jobTitle}</h3>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <span className={`text-2xl font-bold px-3 py-1 rounded-xl ${scoreColor(job.matchScore)}`}>
               {job.matchScore}%
             </span>
-            <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
-              <X className="h-4 w-4 text-gray-500" />
+            <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/[0.08] transition-colors">
+              <X className="h-4 w-4 text-gray-500 dark:text-zinc-400" />
             </button>
           </div>
         </div>
 
         {/* Score breakdown */}
         <div className="space-y-2">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Score Breakdown</p>
+          <p className="text-xs font-semibold text-gray-500 dark:text-zinc-400 uppercase tracking-wide">Score Breakdown</p>
           {breakdown.map(({ label, value, max }) => (
             <div key={label} className="flex items-center gap-3">
-              <span className="text-xs text-gray-600 w-32 shrink-0">{label}</span>
-              <div className="flex-1 bg-gray-100 rounded-full h-1.5 overflow-hidden">
+              <span className="text-xs text-gray-600 dark:text-zinc-400 w-32 shrink-0">{label}</span>
+              <div className="flex-1 bg-gray-100 dark:bg-white/[0.06] rounded-full h-1.5 overflow-hidden">
                 <div
                   className={`h-full rounded-full transition-all ${value / max >= 0.7 ? 'bg-emerald-500' : value / max >= 0.4 ? 'bg-amber-400' : 'bg-red-400'}`}
                   style={{ width: `${(value / max) * 100}%` }}
                 />
               </div>
-              <span className="text-xs font-medium text-gray-700 w-12 text-right">{value}/{max}</span>
+              <span className="text-xs font-medium text-gray-700 dark:text-zinc-300 w-12 text-right">{value}/{max}</span>
             </div>
           ))}
         </div>
@@ -154,10 +154,10 @@ function MatchPanel({ job, onClose }: { job: JobMatch; onClose: () => void }) {
         {/* Keywords */}
         {job.matchedKeywords.length > 0 && (
           <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Matched</p>
+            <p className="text-xs font-semibold text-gray-500 dark:text-zinc-400 uppercase tracking-wide mb-2">Matched</p>
             <div className="flex flex-wrap gap-1.5">
               {job.matchedKeywords.map(k => (
-                <span key={k} className="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-xs rounded-full border border-emerald-200">{k}</span>
+                <span key={k} className="px-2 py-0.5 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-xs rounded-full border border-emerald-200 dark:border-emerald-500/30">{k}</span>
               ))}
             </div>
           </div>
@@ -165,13 +165,13 @@ function MatchPanel({ job, onClose }: { job: JobMatch; onClose: () => void }) {
 
         {job.missingKeywords.length > 0 && (
           <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Missing</p>
+            <p className="text-xs font-semibold text-gray-500 dark:text-zinc-400 uppercase tracking-wide mb-2">Missing</p>
             <div className="flex flex-wrap gap-1.5">
               {job.missingKeywords.slice(0, 8).map(k => (
-                <span key={k} className="px-2 py-0.5 bg-gray-50 text-gray-500 text-xs rounded-full border border-gray-200">{k}</span>
+                <span key={k} className="px-2 py-0.5 bg-gray-50 dark:bg-white/[0.04] text-gray-500 dark:text-zinc-400 text-xs rounded-full border border-gray-200 dark:border-white/10">{k}</span>
               ))}
               {job.missingKeywords.length > 8 && (
-                <span className="px-2 py-0.5 bg-gray-50 text-gray-400 text-xs rounded-full border border-gray-200">+{job.missingKeywords.length - 8} more</span>
+                <span className="px-2 py-0.5 bg-gray-50 dark:bg-white/[0.04] text-gray-400 dark:text-zinc-500 text-xs rounded-full border border-gray-200 dark:border-white/10">+{job.missingKeywords.length - 8} more</span>
               )}
             </div>
           </div>
@@ -319,7 +319,7 @@ export default function Jobs() {
   // ── Render ──────────────────────────────────────────────────────────────────
 
   if (error && !matchMode) {
-    return <div className="flex items-center justify-center h-64 text-red-500 text-sm">{error}</div>;
+    return <div className="flex items-center justify-center h-64 text-red-500 dark:text-red-400 text-sm">{error}</div>;
   }
 
   const currentTotal = matchMode ? filteredMatches.length : total;
@@ -335,12 +335,12 @@ export default function Jobs() {
       {/* ── Header ── */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Jobs</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Browse and filter open positions</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-zinc-100">Jobs</h1>
+          <p className="text-sm text-gray-500 dark:text-zinc-400 mt-0.5">Browse and filter open positions</p>
         </div>
         <div className="flex items-center gap-3 pt-1">
           {lastUpdated && !matchMode && (
-            <span className="text-xs text-gray-400 hidden sm:block">
+            <span className="text-xs text-gray-400 dark:text-zinc-500 hidden sm:block">
               Updated {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </span>
           )}
@@ -349,7 +349,7 @@ export default function Jobs() {
             className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border transition-colors ${
               matchMode
                 ? 'bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700'
-                : 'text-gray-600 bg-white border-gray-200 hover:bg-gray-50'
+                : 'text-gray-600 dark:text-zinc-400 bg-white dark:bg-[#16161a] border-gray-200 dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/[0.05]'
             }`}
           >
             <Sparkles className="h-4 w-4" />
@@ -358,7 +358,7 @@ export default function Jobs() {
           <button
             onClick={handleRefresh}
             disabled={refreshing || isLoading}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 dark:text-zinc-400 bg-white dark:bg-[#16161a] border border-gray-200 dark:border-white/10 rounded-lg hover:bg-gray-50 dark:hover:bg-white/[0.05] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
             Refresh
@@ -368,73 +368,73 @@ export default function Jobs() {
 
       {/* ── Stats ── */}
       <div className="grid grid-cols-3 gap-4">
-        <div className="bg-white rounded-xl border border-gray-200 px-5 py-4 flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-indigo-50">
-            <Briefcase className="h-5 w-5 text-indigo-600" />
+        <div className="bg-white dark:bg-[#16161a] rounded-xl border border-gray-200 dark:border-white/10 px-5 py-4 flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-indigo-50 dark:bg-indigo-500/15">
+            <Briefcase className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
           </div>
           <div>
-            <p className="text-xs text-gray-500 font-medium">Total Jobs</p>
-            <p className="text-xl font-bold text-gray-900">{(matchMode ? matches.length : stats.total).toLocaleString()}</p>
+            <p className="text-xs text-gray-500 dark:text-zinc-400 font-medium">Total Jobs</p>
+            <p className="text-xl font-bold text-gray-900 dark:text-zinc-100">{(matchMode ? matches.length : stats.total).toLocaleString()}</p>
           </div>
         </div>
-        <div className="bg-white rounded-xl border border-gray-200 px-5 py-4 flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-emerald-50">
-            <Building2 className="h-5 w-5 text-emerald-600" />
+        <div className="bg-white dark:bg-[#16161a] rounded-xl border border-gray-200 dark:border-white/10 px-5 py-4 flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-500/10">
+            <Building2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
           </div>
           <div>
-            <p className="text-xs text-gray-500 font-medium">Companies</p>
-            <p className="text-xl font-bold text-gray-900">{stats.companies.toLocaleString()}</p>
+            <p className="text-xs text-gray-500 dark:text-zinc-400 font-medium">Companies</p>
+            <p className="text-xl font-bold text-gray-900 dark:text-zinc-100">{stats.companies.toLocaleString()}</p>
           </div>
         </div>
-        <div className="bg-white rounded-xl border border-gray-200 px-5 py-4 flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-amber-50">
-            <MapPin className="h-5 w-5 text-amber-600" />
+        <div className="bg-white dark:bg-[#16161a] rounded-xl border border-gray-200 dark:border-white/10 px-5 py-4 flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-500/10">
+            <MapPin className="h-5 w-5 text-amber-600 dark:text-amber-400" />
           </div>
           <div>
-            <p className="text-xs text-gray-500 font-medium">Locations</p>
-            <p className="text-xl font-bold text-gray-900">{stats.locations.toLocaleString()}</p>
+            <p className="text-xs text-gray-500 dark:text-zinc-400 font-medium">Locations</p>
+            <p className="text-xl font-bold text-gray-900 dark:text-zinc-100">{stats.locations.toLocaleString()}</p>
           </div>
         </div>
       </div>
 
       {/* ── Filters ── */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4">
+      <div className="bg-white dark:bg-[#16161a] rounded-xl border border-gray-200 dark:border-white/10 p-4">
         {matchMode ? (
           <div className="relative max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-zinc-500 pointer-events-none" />
             <input
               type="text"
               placeholder="Search matches…"
               value={matchSearch}
               onChange={e => { setMatchSearch(e.target.value); setMatchPage(1); }}
-              className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 dark:border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
             />
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-zinc-500 pointer-events-none" />
               <input
                 type="text" placeholder="Search jobs…" value={search}
                 onChange={e => handleSearch(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 dark:border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               />
             </div>
             <select value={companyFilter} onChange={e => handleCompany(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white text-gray-700">
+              className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white dark:bg-[#16161a] text-gray-700 dark:text-zinc-300">
               <option value="">All Companies</option>
               {options.companies.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
             <select value={locationFilter} onChange={e => handleLocation(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white text-gray-700">
+              className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white dark:bg-[#16161a] text-gray-700 dark:text-zinc-300">
               <option value="">All Locations</option>
               {options.locations.map(l => <option key={l} value={l}>{l}</option>)}
             </select>
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-zinc-500 pointer-events-none" />
               <input type="text" placeholder="Filter by title…" value={jobTitleSearch}
                 onChange={e => handleJobTitle(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 dark:border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               />
             </div>
           </div>
@@ -443,19 +443,19 @@ export default function Jobs() {
 
       {/* ── Match error banner ── */}
       {matchMode && matchError && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-700">
+        <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-xl px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
           {matchError}
         </div>
       )}
 
       {/* ── Table ── */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="bg-white dark:bg-[#16161a] rounded-xl border border-gray-200 dark:border-white/10 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-100 bg-gray-50">
+              <tr className="border-b border-gray-100 dark:border-white/[0.07] bg-gray-50 dark:bg-white/[0.04]">
                 {matchMode && (
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap w-16">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-zinc-400 uppercase tracking-wide whitespace-nowrap w-16">
                     Match
                   </th>
                 )}
@@ -470,7 +470,7 @@ export default function Jobs() {
                   <th
                     key={key}
                     onClick={() => !matchMode && handleSort(key)}
-                    className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap ${!matchMode ? 'cursor-pointer select-none hover:text-gray-700' : ''}`}
+                    className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-zinc-400 uppercase tracking-wide whitespace-nowrap ${!matchMode ? 'cursor-pointer select-none hover:text-gray-700 dark:hover:text-zinc-200' : ''}`}
                   >
                     <span className="inline-flex items-center gap-1.5">
                       {label}
@@ -478,7 +478,7 @@ export default function Jobs() {
                     </span>
                   </th>
                 ))}
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-zinc-400 uppercase tracking-wide whitespace-nowrap">
                   Actions
                 </th>
               </tr>
@@ -486,10 +486,10 @@ export default function Jobs() {
             <tbody>
               {isLoading ? (
                 Array.from({ length: 8 }).map((_, i) => (
-                  <tr key={i} className="border-b border-gray-50">
+                  <tr key={i} className="border-b border-gray-50 dark:border-white/5">
                     {Array.from({ length: matchMode ? 6 : 5 }).map((_, j) => (
                       <td key={j} className="px-4 py-3">
-                        <div className="h-4 bg-gray-100 rounded animate-pulse" style={{ width: `${60 + (j * 10) % 30}%` }} />
+                        <div className="h-4 bg-gray-100 dark:bg-white/[0.06] rounded animate-pulse" style={{ width: `${60 + (j * 10) % 30}%` }} />
                       </td>
                     ))}
                   </tr>
@@ -497,28 +497,28 @@ export default function Jobs() {
               ) : matchMode ? (
                 pagedMatches.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-4 py-16 text-center text-gray-400 text-sm">
+                    <td colSpan={6} className="px-4 py-16 text-center text-gray-400 dark:text-zinc-500 text-sm">
                       No matches found.
                     </td>
                   </tr>
                 ) : (
                   pagedMatches.map((job, idx) => (
-                    <tr key={job.id} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${idx % 2 === 0 ? '' : 'bg-gray-50/40'}`}>
+                    <tr key={job.id} className={`border-b border-gray-50 dark:border-white/5 hover:bg-gray-50 dark:hover:bg-white/[0.05] transition-colors ${idx % 2 === 0 ? '' : 'bg-gray-50/40 dark:bg-white/[0.03]'}`}>
                       <td className="px-4 py-3">
                         <MatchBadge job={job} onClick={() => setSelectedMatch(job)} />
                       </td>
-                      <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap max-w-[180px] truncate">{job.company ?? '—'}</td>
-                      <td className="px-4 py-3 text-gray-700 max-w-[260px] truncate">{job.jobTitle ?? '—'}</td>
-                      <td className="px-4 py-3 text-gray-500 whitespace-nowrap max-w-[160px] truncate">{job.location ?? '—'}</td>
-                      <td className="px-4 py-3 text-gray-400 whitespace-nowrap">{formatDate(job.scrapedAt)}</td>
+                      <td className="px-4 py-3 font-medium text-gray-900 dark:text-zinc-100 whitespace-nowrap max-w-[180px] truncate">{job.company ?? '—'}</td>
+                      <td className="px-4 py-3 text-gray-700 dark:text-zinc-300 max-w-[260px] truncate">{job.jobTitle ?? '—'}</td>
+                      <td className="px-4 py-3 text-gray-500 dark:text-zinc-400 whitespace-nowrap max-w-[160px] truncate">{job.location ?? '—'}</td>
+                      <td className="px-4 py-3 text-gray-400 dark:text-zinc-500 whitespace-nowrap">{formatDate(job.scrapedAt)}</td>
                       <td className="px-4 py-3">
                         {job.jobUrl ? (
                           <a href={job.jobUrl} target="_blank" rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 text-indigo-600 hover:text-indigo-800 font-medium transition-colors whitespace-nowrap">
+                            className="inline-flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-medium transition-colors whitespace-nowrap">
                             <ExternalLink className="h-3.5 w-3.5" />
                             View Position
                           </a>
-                        ) : <span className="text-gray-300">—</span>}
+                        ) : <span className="text-gray-300 dark:text-zinc-600">—</span>}
                       </td>
                     </tr>
                   ))
@@ -526,25 +526,25 @@ export default function Jobs() {
               ) : (
                 listings.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-4 py-16 text-center text-gray-400 text-sm">
+                    <td colSpan={5} className="px-4 py-16 text-center text-gray-400 dark:text-zinc-500 text-sm">
                       No positions match your filters.
                     </td>
                   </tr>
                 ) : (
                   listings.map((job, idx) => (
-                    <tr key={job.id} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${idx % 2 === 0 ? '' : 'bg-gray-50/40'}`}>
-                      <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap max-w-[180px] truncate">{job.company ?? '—'}</td>
-                      <td className="px-4 py-3 text-gray-700 max-w-[260px] truncate">{job.jobTitle ?? '—'}</td>
-                      <td className="px-4 py-3 text-gray-500 whitespace-nowrap max-w-[160px] truncate">{job.location ?? '—'}</td>
-                      <td className="px-4 py-3 text-gray-400 whitespace-nowrap">{formatDate(job.scrapedAt)}</td>
+                    <tr key={job.id} className={`border-b border-gray-50 dark:border-white/5 hover:bg-gray-50 dark:hover:bg-white/[0.05] transition-colors ${idx % 2 === 0 ? '' : 'bg-gray-50/40 dark:bg-white/[0.03]'}`}>
+                      <td className="px-4 py-3 font-medium text-gray-900 dark:text-zinc-100 whitespace-nowrap max-w-[180px] truncate">{job.company ?? '—'}</td>
+                      <td className="px-4 py-3 text-gray-700 dark:text-zinc-300 max-w-[260px] truncate">{job.jobTitle ?? '—'}</td>
+                      <td className="px-4 py-3 text-gray-500 dark:text-zinc-400 whitespace-nowrap max-w-[160px] truncate">{job.location ?? '—'}</td>
+                      <td className="px-4 py-3 text-gray-400 dark:text-zinc-500 whitespace-nowrap">{formatDate(job.scrapedAt)}</td>
                       <td className="px-4 py-3">
                         {job.jobUrl ? (
                           <a href={job.jobUrl} target="_blank" rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 text-indigo-600 hover:text-indigo-800 font-medium transition-colors whitespace-nowrap">
+                            className="inline-flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-medium transition-colors whitespace-nowrap">
                             <ExternalLink className="h-3.5 w-3.5" />
                             View Position
                           </a>
-                        ) : <span className="text-gray-300">—</span>}
+                        ) : <span className="text-gray-300 dark:text-zinc-600">—</span>}
                       </td>
                     </tr>
                   ))
@@ -555,25 +555,25 @@ export default function Jobs() {
         </div>
 
         {/* ── Pagination bar ── */}
-        <div className="px-4 py-3 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex items-center gap-3 text-sm text-gray-500">
+        <div className="px-4 py-3 border-t border-gray-100 dark:border-white/[0.07] flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-3 text-sm text-gray-500 dark:text-zinc-400">
             <span>
               {currentTotal === 0 ? 'No results' : `Showing ${currentFrom}–${currentTo} of ${currentTotal.toLocaleString()} jobs`}
             </span>
             <select value={pageSize} onChange={e => handlePageSize(Number(e.target.value))}
-              className="text-xs border border-gray-200 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+              className="text-xs border border-gray-200 dark:border-white/10 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-[#16161a]">
               {PAGE_SIZES.map(n => <option key={n} value={n}>{n} per page</option>)}
             </select>
           </div>
 
           <div className="flex items-center gap-1">
             <button onClick={() => setCurrentPage(1)} disabled={currentPage <= 1}
-              className="px-2 py-1.5 rounded-md text-xs font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+              className="px-2 py-1.5 rounded-md text-xs font-medium text-gray-600 dark:text-zinc-400 hover:bg-gray-100 dark:hover:bg-white/[0.08] disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
               First
             </button>
             <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage <= 1}
-              className="p-1.5 rounded-md hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
-              <ChevronLeft className="h-4 w-4 text-gray-600" />
+              className="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-white/[0.08] disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+              <ChevronLeft className="h-4 w-4 text-gray-600 dark:text-zinc-400" />
             </button>
 
             {Array.from({ length: Math.min(5, currentTotalPages) }, (_, i) => {
@@ -584,18 +584,18 @@ export default function Jobs() {
               else p = currentPage - 2 + i;
               return (
                 <button key={p} onClick={() => setCurrentPage(p)}
-                  className={`min-w-[30px] px-2 py-1.5 rounded-md text-xs font-medium transition-colors ${currentPage === p ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}>
+                  className={`min-w-[30px] px-2 py-1.5 rounded-md text-xs font-medium transition-colors ${currentPage === p ? 'bg-indigo-600 text-white' : 'text-gray-600 dark:text-zinc-400 hover:bg-gray-100 dark:hover:bg-white/[0.08]'}`}>
                   {p}
                 </button>
               );
             })}
 
             <button onClick={() => setCurrentPage(p => Math.min(currentTotalPages, p + 1))} disabled={currentPage >= currentTotalPages}
-              className="p-1.5 rounded-md hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
-              <ChevronRight className="h-4 w-4 text-gray-600" />
+              className="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-white/[0.08] disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+              <ChevronRight className="h-4 w-4 text-gray-600 dark:text-zinc-400" />
             </button>
             <button onClick={() => setCurrentPage(currentTotalPages)} disabled={currentPage >= currentTotalPages}
-              className="px-2 py-1.5 rounded-md text-xs font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+              className="px-2 py-1.5 rounded-md text-xs font-medium text-gray-600 dark:text-zinc-400 hover:bg-gray-100 dark:hover:bg-white/[0.08] disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
               Last
             </button>
           </div>

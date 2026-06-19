@@ -1,19 +1,41 @@
 @import "tailwindcss";
 
+/* Enable class-based dark mode: `dark:` utilities apply under `.dark` on <html>. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @layer base {
+  html { color-scheme: light; }
+  html.dark { color-scheme: dark; }
+
   body {
-    @apply bg-gray-50 text-gray-900;
+    @apply bg-gray-50 text-gray-900 dark:bg-[#0b0b0e] dark:text-zinc-100;
+  }
+
+  /* Default border color so bare `border`/`border-b` utilities render sensibly
+     in both themes (explicit border-* utilities still win via the utilities layer). */
+  *,
+  ::before,
+  ::after {
+    border-color: #e5e7eb; /* gray-200 */
+  }
+  .dark *,
+  .dark ::before,
+  .dark ::after {
+    border-color: rgba(255, 255, 255, 0.1);
   }
 }
 
 @layer components {
   .input-field {
-    @apply w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400
+    @apply w-full border border-gray-300 dark:border-white/15 rounded-xl px-3 py-2.5 text-sm
+           text-gray-900 dark:text-zinc-100 placeholder-gray-400 dark:placeholder-zinc-500
+           bg-white dark:bg-white/[0.04]
            focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-shadow;
   }
 
   .submit-btn {
     @apply w-full bg-indigo-600 text-white rounded-xl px-4 py-2.5 text-sm font-semibold
-           hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors;
+           hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-400
+           disabled:opacity-60 disabled:cursor-not-allowed transition-colors;
   }
 }

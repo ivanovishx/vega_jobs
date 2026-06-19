@@ -35,10 +35,10 @@ function isValidUrl(url: string | null | undefined): url is string {
 }
 
 function SortIcon({ col, sortBy, sortDir }: { col: SortCol; sortBy: SortCol; sortDir: SortDir }) {
-  if (col !== sortBy) return <ChevronsUpDown className="h-3 w-3 text-gray-300 ml-1 shrink-0" />;
+  if (col !== sortBy) return <ChevronsUpDown className="h-3 w-3 text-gray-300 dark:text-zinc-600 ml-1 shrink-0" />;
   return sortDir === 'asc'
-    ? <ChevronUp className="h-3 w-3 text-indigo-500 ml-1 shrink-0" />
-    : <ChevronDown className="h-3 w-3 text-indigo-500 ml-1 shrink-0" />;
+    ? <ChevronUp className="h-3 w-3 text-indigo-500 dark:text-indigo-400 ml-1 shrink-0" />
+    : <ChevronDown className="h-3 w-3 text-indigo-500 dark:text-indigo-400 ml-1 shrink-0" />;
 }
 
 interface PaginationBarProps {
@@ -54,18 +54,18 @@ interface PaginationBarProps {
 function PaginationBar({ page, totalPages, total, limit, onPageChange, onLimitChange, position }: PaginationBarProps) {
   const borderClass = position === 'top' ? 'border-b' : 'border-t';
   return (
-    <div className={`flex items-center justify-between px-4 py-2.5 ${borderClass} border-gray-100 flex-wrap gap-2`}>
-      <div className="flex items-center gap-2 text-xs text-gray-500 shrink-0 flex-wrap">
+    <div className={`flex items-center justify-between px-4 py-2.5 ${borderClass} border-gray-100 dark:border-white/[0.07] flex-wrap gap-2`}>
+      <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-zinc-400 shrink-0 flex-wrap">
         {position === 'top' && (
-          <span className="text-gray-400 pr-2 border-r border-gray-200 mr-1">
-            <kbd className="px-1 py-0.5 bg-gray-100 rounded font-mono text-gray-500">Shift+Ctrl+←/→</kbd> to navigate
+          <span className="text-gray-400 dark:text-zinc-500 pr-2 border-r border-gray-200 dark:border-white/10 mr-1">
+            <kbd className="px-1 py-0.5 bg-gray-100 dark:bg-white/[0.06] rounded font-mono text-gray-500 dark:text-zinc-400">Shift+Ctrl+←/→</kbd> to navigate
           </span>
         )}
         <span>Companies per page:</span>
         <select
           value={limit}
           onChange={e => onLimitChange(Number(e.target.value))}
-          className="border border-gray-200 rounded-md px-1.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          className="border border-gray-200 dark:border-white/10 rounded-md px-1.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
         >
           {PAGE_SIZE_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
@@ -75,14 +75,14 @@ function PaginationBar({ page, totalPages, total, limit, onPageChange, onLimitCh
       </div>
       <div className="flex items-center gap-1">
         <button onClick={() => onPageChange(1)} disabled={page === 1}
-          className="px-2 py-1 text-xs font-medium text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">«</button>
+          className="px-2 py-1 text-xs font-medium text-gray-600 dark:text-zinc-400 border border-gray-200 dark:border-white/10 rounded-md hover:bg-gray-50 dark:hover:bg-white/[0.05] disabled:opacity-40 disabled:cursor-not-allowed">«</button>
         <button onClick={() => onPageChange(page - 1)} disabled={page === 1}
-          className="px-2.5 py-1 text-xs font-medium text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">‹ Prev</button>
-        <span className="px-3 py-1 text-xs text-gray-500 select-none">{page} / {totalPages.toLocaleString()}</span>
+          className="px-2.5 py-1 text-xs font-medium text-gray-600 dark:text-zinc-400 border border-gray-200 dark:border-white/10 rounded-md hover:bg-gray-50 dark:hover:bg-white/[0.05] disabled:opacity-40 disabled:cursor-not-allowed">‹ Prev</button>
+        <span className="px-3 py-1 text-xs text-gray-500 dark:text-zinc-400 select-none">{page} / {totalPages.toLocaleString()}</span>
         <button onClick={() => onPageChange(page + 1)} disabled={page >= totalPages}
-          className="px-2.5 py-1 text-xs font-medium text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">Next ›</button>
+          className="px-2.5 py-1 text-xs font-medium text-gray-600 dark:text-zinc-400 border border-gray-200 dark:border-white/10 rounded-md hover:bg-gray-50 dark:hover:bg-white/[0.05] disabled:opacity-40 disabled:cursor-not-allowed">Next ›</button>
         <button onClick={() => onPageChange(totalPages)} disabled={page >= totalPages}
-          className="px-2 py-1 text-xs font-medium text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">»</button>
+          className="px-2 py-1 text-xs font-medium text-gray-600 dark:text-zinc-400 border border-gray-200 dark:border-white/10 rounded-md hover:bg-gray-50 dark:hover:bg-white/[0.05] disabled:opacity-40 disabled:cursor-not-allowed">»</button>
       </div>
     </div>
   );
@@ -173,7 +173,7 @@ export default function Companies() {
   const handleLimitChange = (l: number) => { setLimit(l); setPage(1); };
 
   if (error) {
-    return <div className="flex items-center justify-center h-64 text-red-500 text-sm">{error}</div>;
+    return <div className="flex items-center justify-center h-64 text-red-500 dark:text-red-400 text-sm">{error}</div>;
   }
 
   const colHeaders: { key: SortCol | null; label: string }[] = [
@@ -192,19 +192,19 @@ export default function Companies() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Companies</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Companies directory</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-zinc-100">Companies</h1>
+          <p className="text-sm text-gray-500 dark:text-zinc-400 mt-0.5">Companies directory</p>
         </div>
         <div className="flex items-center gap-3 pt-1">
           {lastUpdated && (
-            <span className="text-xs text-gray-400 hidden sm:block">
+            <span className="text-xs text-gray-400 dark:text-zinc-500 hidden sm:block">
               Updated {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </span>
           )}
           <button
             onClick={handleRefresh}
             disabled={refreshing || loading}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 dark:text-zinc-400 bg-white dark:bg-[#16161a] border border-gray-200 dark:border-white/10 rounded-lg hover:bg-gray-50 dark:hover:bg-white/[0.05] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
             Refresh
@@ -213,32 +213,32 @@ export default function Companies() {
       </div>
 
       {/* Stats */}
-      <div className="bg-white rounded-xl border border-gray-200 px-5 py-4 flex items-center gap-3 max-w-xs">
-        <div className="p-2 rounded-lg bg-emerald-50">
-          <Building2 className="h-5 w-5 text-emerald-600" />
+      <div className="bg-white dark:bg-[#16161a] rounded-xl border border-gray-200 dark:border-white/10 px-5 py-4 flex items-center gap-3 max-w-xs">
+        <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-500/10">
+          <Building2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
         </div>
         <div>
-          <p className="text-xs text-gray-500 font-medium">Total Companies</p>
-          <p className="text-xl font-bold text-gray-900">{total.toLocaleString()}</p>
+          <p className="text-xs text-gray-500 dark:text-zinc-400 font-medium">Total Companies</p>
+          <p className="text-xl font-bold text-gray-900 dark:text-zinc-100">{total.toLocaleString()}</p>
         </div>
       </div>
 
       {/* Search */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4">
+      <div className="bg-white dark:bg-[#16161a] rounded-xl border border-gray-200 dark:border-white/10 p-4">
         <div className="relative max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-zinc-500 pointer-events-none" />
           <input
             type="text"
             placeholder="Search companies…"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 dark:border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
           />
         </div>
       </div>
 
       {/* Table card */}
-      <div className={`bg-white rounded-xl border border-gray-200 overflow-hidden transition-opacity ${fetching ? 'opacity-60' : 'opacity-100'}`}>
+      <div className={`bg-white dark:bg-[#16161a] rounded-xl border border-gray-200 dark:border-white/10 overflow-hidden transition-opacity ${fetching ? 'opacity-60' : 'opacity-100'}`}>
 
         {/* Top pagination */}
         {!loading && (
@@ -248,12 +248,12 @@ export default function Companies() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-100 bg-gray-50">
+              <tr className="border-b border-gray-100 dark:border-white/[0.07] bg-gray-50 dark:bg-white/[0.04]">
                 {colHeaders.map(col => (
                   <th
                     key={col.label}
                     onClick={col.key ? () => handleSort(col.key as SortCol) : undefined}
-                    className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap ${col.key ? 'cursor-pointer hover:text-gray-700 select-none' : ''}`}
+                    className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-zinc-400 uppercase tracking-wide whitespace-nowrap ${col.key ? 'cursor-pointer hover:text-gray-700 dark:hover:text-zinc-200 select-none' : ''}`}
                   >
                     <span className="inline-flex items-center">
                       {col.label}
@@ -266,17 +266,17 @@ export default function Companies() {
             <tbody>
               {loading ? (
                 Array.from({ length: 8 }).map((_, i) => (
-                  <tr key={i} className="border-b border-gray-50">
+                  <tr key={i} className="border-b border-gray-50 dark:border-white/5">
                     {Array.from({ length: 5 }).map((_, j) => (
                       <td key={j} className="px-4 py-3">
-                        <div className="h-4 bg-gray-100 rounded animate-pulse" style={{ width: `${40 + (j * 12) % 45}%` }} />
+                        <div className="h-4 bg-gray-100 dark:bg-white/[0.06] rounded animate-pulse" style={{ width: `${40 + (j * 12) % 45}%` }} />
                       </td>
                     ))}
                   </tr>
                 ))
               ) : companies.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-16 text-center text-gray-400 text-sm">
+                  <td colSpan={5} className="px-4 py-16 text-center text-gray-400 dark:text-zinc-500 text-sm">
                     No companies match your search.
                   </td>
                 </tr>
@@ -284,21 +284,21 @@ export default function Companies() {
                 companies.map((c, idx) => (
                   <tr
                     key={c.id}
-                    className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${idx % 2 !== 0 ? 'bg-gray-50/40' : ''}`}
+                    className={`border-b border-gray-50 dark:border-white/5 hover:bg-gray-50 dark:hover:bg-white/[0.05] transition-colors ${idx % 2 !== 0 ? 'bg-gray-50/40 dark:bg-white/[0.03]' : ''}`}
                   >
                     {/* Rank */}
-                    <td className="px-4 py-3 text-gray-400 font-mono text-xs tabular-nums w-14 shrink-0">
+                    <td className="px-4 py-3 text-gray-400 dark:text-zinc-500 font-mono text-xs tabular-nums w-14 shrink-0">
                       {c.rank ?? '—'}
                     </td>
 
                     {/* Company name → crunchbaseLink */}
-                    <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">
+                    <td className="px-4 py-3 font-medium text-gray-900 dark:text-zinc-100 whitespace-nowrap">
                       {c.crunchbaseLink ? (
                         <a
                           href={normalizeUrl(c.crunchbaseLink)}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="hover:text-indigo-600 transition-colors"
+                          className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
                         >
                           {c.name ?? '—'}
                         </a>
@@ -314,22 +314,22 @@ export default function Companies() {
                           href={normalizeUrl(c.website)}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800 transition-colors text-xs truncate max-w-full"
+                          className="inline-flex items-center gap-1 text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors text-xs truncate max-w-full"
                           title={c.website}
                         >
                           <ExternalLink className="h-3 w-3 shrink-0" />
                           <span className="truncate">{displayUrl(c.website)}</span>
                         </a>
                       ) : (
-                        <span className="text-gray-300">—</span>
+                        <span className="text-gray-300 dark:text-zinc-600">—</span>
                       )}
                     </td>
 
                     {/* Description */}
-                    <td className="px-4 py-3 text-gray-500 max-w-xs">
+                    <td className="px-4 py-3 text-gray-500 dark:text-zinc-400 max-w-xs">
                       {c.description1
                         ? <span className="line-clamp-2 text-xs leading-relaxed">{c.description1}</span>
-                        : <span className="text-gray-300">—</span>
+                        : <span className="text-gray-300 dark:text-zinc-600">—</span>
                       }
                     </td>
 
@@ -342,7 +342,7 @@ export default function Companies() {
                               href={normalizeUrl(c.linkCareers1)}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-emerald-600 hover:text-emerald-800 transition-colors text-xs truncate max-w-[160px]"
+                              className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 transition-colors text-xs truncate max-w-[160px]"
                               title={c.linkCareers1}
                             >
                               <ExternalLink className="h-3 w-3 shrink-0" />
@@ -354,7 +354,7 @@ export default function Companies() {
                               href={normalizeUrl(c.linkCareers2)}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-emerald-600 hover:text-emerald-800 transition-colors text-xs truncate max-w-[160px]"
+                              className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 transition-colors text-xs truncate max-w-[160px]"
                               title={c.linkCareers2}
                             >
                               <ExternalLink className="h-3 w-3 shrink-0" />
@@ -363,7 +363,7 @@ export default function Companies() {
                           )}
                         </div>
                       ) : (
-                        <span className="text-gray-300">—</span>
+                        <span className="text-gray-300 dark:text-zinc-600">—</span>
                       )}
                     </td>
                   </tr>

@@ -5,6 +5,20 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>frontend</title>
+    <script>
+      // Apply the saved theme before first paint to avoid a flash of the wrong
+      // theme. Reads the same `vega_theme` cookie used by ThemeContext; works
+      // for logged-in and anonymous visitors. Light is the default.
+      (function () {
+        try {
+          var m = document.cookie.match(/(?:^|;\s*)vega_theme=(light|dark)\b/);
+          if (m && m[1] === 'dark') {
+            document.documentElement.classList.add('dark');
+            document.documentElement.style.colorScheme = 'dark';
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
