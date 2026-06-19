@@ -77,7 +77,7 @@ function LoginForm() {
     try {
       await axios.post(`${API_BASE}/auth/login`, { email, password }, { withCredentials: true });
       await refreshUser();
-      navigate('/');
+      navigate('/dashboard');
     } catch (err: any) {
       setError(err.response?.data?.error ?? 'Ocurrió un error. Intenta de nuevo.');
     } finally {
@@ -152,7 +152,7 @@ function RegisterForm({ onSwitchTab }: { onSwitchTab: () => void }) {
     try {
       await axios.post(`${API_BASE}/auth/register`, { email, password, name }, { withCredentials: true });
       await refreshUser();
-      navigate('/');
+      navigate('/dashboard');
     } catch (err: any) {
       setError(err.response?.data?.error ?? 'Ocurrió un error. Intenta de nuevo.');
     } finally {

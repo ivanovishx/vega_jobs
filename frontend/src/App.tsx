@@ -6,6 +6,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Sidebar from './components/Sidebar';
 import AuthModal from './components/AuthModal';
 import Login from './pages/Login';
+import Home from './pages/Home';
 import Dashboard from './pages/Dashboard';
 import Applications from './pages/Applications';
 import JobAnalyzer from './pages/JobAnalyzer';
@@ -81,13 +82,14 @@ function Layout({ children }: { children: React.ReactNode }) {
 function AppRoutes() {
   return (
     <Routes>
+      <Route path="/" element={<Home />} />
       <Route path="/login" element={<Login />} />
       <Route
         path="/*"
         element={
           <Layout>
             <Routes>
-              <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+              <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/applications" element={<ProtectedRoute><Applications /></ProtectedRoute>} />
               <Route path="/applications/:id" element={<ProtectedRoute><ApplicationDetail /></ProtectedRoute>} />
               <Route path="/saved-jobs" element={<ProtectedRoute><SavedJobs /></ProtectedRoute>} />
@@ -104,10 +106,10 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
+    <BrowserRouter>
+      <AuthProvider>
         <AppRoutes />
-      </BrowserRouter>
-    </AuthProvider>
+      </AuthProvider>
+    </BrowserRouter>
   );
 }
