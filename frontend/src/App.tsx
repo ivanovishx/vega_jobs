@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Menu, User } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import ImpersonationBanner from './components/ImpersonationBanner';
 import Sidebar from './components/Sidebar';
 import AuthModal from './components/AuthModal';
 import Login from './pages/Login';
@@ -14,6 +15,7 @@ import CandidateProfile from './pages/CandidateProfile';
 import SavedJobs from './pages/SavedJobs';
 import ApplicationDetail from './pages/ApplicationDetail';
 import Jobs from './pages/Jobs';
+import Admin from './pages/Admin';
 
 function Layout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -22,6 +24,7 @@ function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <ImpersonationBanner />
       <Sidebar
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
@@ -96,6 +99,7 @@ function AppRoutes() {
               <Route path="/analyzer" element={<ProtectedRoute><JobAnalyzer /></ProtectedRoute>} />
               <Route path="/profile" element={<ProtectedRoute><CandidateProfile /></ProtectedRoute>} />
               <Route path="/jobs" element={<ProtectedRoute><Jobs /></ProtectedRoute>} />
+              <Route path="/admin" element={<ProtectedRoute requireRole="ADMIN"><Admin /></ProtectedRoute>} />
             </Routes>
           </Layout>
         }

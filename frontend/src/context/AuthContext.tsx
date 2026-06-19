@@ -8,6 +8,9 @@ interface User {
   email: string;
   name: string | null;
   picture: string | null;
+  role: 'USER' | 'ADMIN';
+  impersonating?: boolean;
+  adminId?: string;
 }
 
 interface AuthContextValue {
@@ -15,6 +18,7 @@ interface AuthContextValue {
   loading: boolean;
   refreshUser: () => Promise<void>;
   logout: () => Promise<void>;
+  endImpersonation: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -45,8 +49,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     navigate('/', { replace: true });
   };
 
+  const endImpersonation = async () => {
+    await axios.post(`${API_BASE}/api/admin/impersonate/end`, {}, { withCredentials: true });
+    await refreshUser();
+    navigate('/admin', { replace: true });
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, refreshUser, logout }}>
+    <AuthContext.Provider value={{ user, loading, refreshUser, logout, endImpersonation }}>
       {children}
     </AuthContext.Provider>
   );
