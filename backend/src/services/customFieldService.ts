@@ -92,7 +92,16 @@ export const customFieldService = {
     const fieldKey = payload.fieldKey ? normalizeFieldKey(payload.fieldKey) : normalizeFieldKey(payload.label);
     if (!fieldKey) throw new Error('fieldKey or label required');
 
-    return prisma.customField.upsert({
+    // Was this field empty (or absent) before this save? If so, and we're now
+    // storing a real value, this is the first time the user's info is recorded
+    // for it — surfaced to the extension so it can notify the user.
+    const existing = await prisma.customField.findUnique({
+      where: { userId_fieldKey: { userId, fieldKey } },
+    });
+    const wasEmpty = !existing || existing.value == null || existing.value === '';
+    const hasValue = payload.value != null && payload.value !== '';
+
+    const field = await prisma.customField.upsert({
       where: { userId_fieldKey: { userId, fieldKey } },
       create: {
         userId,
@@ -110,6 +119,8 @@ export const customFieldService = {
         ...(payload.lastSeenUrl ? { lastSeenUrl: payload.lastSeenUrl } : {}),
       },
     });
+
+    return { field, created: !existing, firstAnswer: wasEmpty && hasValue };
   },
 
   async updateById(userId: string, id: string, value: string | null) {

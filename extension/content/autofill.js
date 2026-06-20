@@ -20,6 +20,40 @@ window.runVegaAutofill = function(profile) {
     } catch (e) { /* extension context unavailable */ }
   };
 
+  // On-page, stacking notification — shown when a brand-new field is recorded
+  // to the database with your info, so you get visible confirmation without
+  // opening the popup.
+  const vegaNotify = (msg) => {
+    try {
+      let container = document.getElementById('vega-notify-container');
+      if (!container) {
+        container = document.createElement('div');
+        container.id = 'vega-notify-container';
+        container.style.cssText = `
+          position: fixed; top: 64px; right: 20px; z-index: 2147483647;
+          display: flex; flex-direction: column; gap: 8px;
+          font-family: system-ui, -apple-system, sans-serif; pointer-events: none;
+        `;
+        document.body.appendChild(container);
+      }
+      const note = document.createElement('div');
+      note.textContent = '🆕 ' + msg;
+      note.style.cssText = `
+        background-color: #ecfdf5; color: #065f46; border: 1px solid #6ee7b7;
+        border-left: 4px solid #059669; padding: 10px 14px; border-radius: 8px;
+        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+        font-size: 13px; font-weight: 500; max-width: 320px;
+        opacity: 0; transform: translateX(12px); transition: opacity .3s ease, transform .3s ease;
+      `;
+      container.appendChild(note);
+      requestAnimationFrame(() => { note.style.opacity = '1'; note.style.transform = 'translateX(0)'; });
+      setTimeout(() => {
+        note.style.opacity = '0'; note.style.transform = 'translateX(12px)';
+        setTimeout(() => note.remove(), 350);
+      }, 5000);
+    } catch (e) { /* ignore */ }
+  };
+
   // Helper function to normalize text (strip accents, spaces, lowercase)
   const normalizeString = (str) => {
     if (!str) return '';
@@ -165,8 +199,8 @@ window.runVegaAutofill = function(profile) {
       partial: ['country', 'pais']
     },
     location: {
-      exact: ['location', 'address', 'direccion', 'dirección', 'ubicacion', 'ubicación', 'current location', 'where are you located', 'home address', 'current city', 'ciudad actual'],
-      partial: ['location', 'address', 'ubicacion', 'direccion']
+      exact: ['location', 'address', 'direccion', 'dirección', 'ubicacion', 'ubicación', 'current location', 'where are you located', 'home address', 'current city', 'ciudad actual', 'location city', 'from where do you intend to work', 'where do you intend to work', 'city and state', 'please list city and state', 'current city and state', 'where are you based', 'where are you currently located'],
+      partial: ['location', 'address', 'ubicacion', 'direccion', 'intend to work', 'city and state']
     }
   };
 
@@ -408,6 +442,80 @@ window.runVegaAutofill = function(profile) {
   };
 
   const SKIP_TYPES = new Set(['hidden', 'submit', 'button', 'image', 'reset', 'checkbox', 'radio', 'file', 'password', 'range', 'color']);
+
+  // ── Typeahead / combobox fields (e.g. Greenhouse "Location (City)" and the
+  // phone "Country" selector) ─────────────────────────────────────────────────
+  // These React widgets ignore a directly-set value: you must "type" into them
+  // so the suggestion list opens, then click a matching option. This is a best-
+  // effort handler — it types the value, waits for options, and selects the
+  // option whose text best matches.
+  const selectFromTypeahead = (input, value) => {
+    try {
+      input.focus();
+      setNativeValue(input, value);
+      const lastChar = value.slice(-1) || 'a';
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: lastChar, bubbles: true }));
+      input.dispatchEvent(new KeyboardEvent('keyup', { key: lastChar, bubbles: true }));
+
+      // Options render asynchronously; give the widget time to fetch/render them.
+      setTimeout(() => {
+        try {
+          let listbox = null;
+          const ctrl = input.getAttribute('aria-controls') || input.getAttribute('aria-owns');
+          if (ctrl) listbox = document.getElementById(ctrl);
+          if (!listbox) {
+            const wrap = input.closest('div, fieldset, section');
+            if (wrap) listbox = wrap.querySelector('[role="listbox"]');
+          }
+          if (!listbox) listbox = document.querySelector('[role="listbox"]');
+
+          const options = listbox
+            ? Array.from(listbox.querySelectorAll('[role="option"], li'))
+            : Array.from(document.querySelectorAll('[role="option"]'));
+          if (!options.length) {
+            vegaLog(`• Typed "${trunc(value)}" into a typeahead, but no suggestions appeared — you may need to pick one manually.`);
+            return;
+          }
+          const normVal = normalizeString(value);
+          let target = options.find(o => normalizeString(o.textContent) === normVal)
+            || options.find(o => normalizeString(o.textContent).includes(normVal))
+            || options[0];
+          if (target) {
+            target.scrollIntoView({ block: 'nearest' });
+            target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+            target.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+            target.click();
+            filledCount++;
+            highlight(input);
+            vegaLog(`✓ Selected "${trunc((target.textContent || '').trim())}" from a typeahead`);
+          }
+        } catch (e) { /* ignore */ }
+      }, 800);
+    } catch (e) { /* ignore */ }
+  };
+
+  const fillTypeaheadComboboxes = () => {
+    const combos = queryAllIncludingShadows(
+      'input[role="combobox"], input[aria-autocomplete="list"], input[aria-autocomplete="both"]'
+    );
+    combos.forEach(input => {
+      if (input.disabled || input.readOnly) return;
+      if (input.value && input.value.trim() !== '') return;
+      if (matchedElements.has(input)) return;
+
+      const norm = normalizeString(getFieldText(input));
+      const isLocation = ['location', 'city', 'ciudad', 'where are you', 'intend to work', 'where do you'].some(k => norm.includes(k));
+      const isPhoneCountry = norm.includes('country') && (norm.includes('phone') || norm.includes('dial') || norm.includes('code') || norm.includes('telefono'));
+
+      if (isLocation) {
+        const val = candidateCity || (profile.targetLocations && profile.targetLocations[0]) || '';
+        if (val) { matchedElements.add(input); selectFromTypeahead(input, val); }
+      } else if (isPhoneCountry) {
+        const val = candidateCountry || 'United States';
+        matchedElements.add(input); selectFromTypeahead(input, val);
+      }
+    });
+  };
 
   const fillTextAndFormFields = () => {
   // 1. Fill text-shaped inputs and textareas (query including Shadow DOMs)
@@ -687,6 +795,8 @@ window.runVegaAutofill = function(profile) {
       matchAndSetOption(profile.disabilityStatus);
     }
   });
+  // Best-effort fill for React typeahead/combobox fields (Location, phone Country).
+  fillTypeaheadComboboxes();
   }; // end fillTextAndFormFields
 
   // ── Custom field learning ──────────────────────────────────────────────────
@@ -744,6 +854,48 @@ window.runVegaAutofill = function(profile) {
     return false;
   };
 
+  // Returns true if an element behaves like a typeahead/combobox (react-select,
+  // Downshift, etc.) where the value is chosen from an opening option list.
+  const isComboboxEl = (el) => {
+    try {
+      return el.tagName !== 'SELECT' && (el.getAttribute('role') === 'combobox' || !!el.getAttribute('aria-autocomplete'));
+    } catch (e) { return false; }
+  };
+
+  // Read a field's *human-readable* value — for a native <select> that's the
+  // selected option's text (not its opaque value attribute), so the answer is
+  // reusable on other sites. Placeholder selections ("Select…") return ''.
+  const readFieldValue = (el) => {
+    if (el.tagName === 'SELECT') {
+      const opt = el.options ? el.options[el.selectedIndex] : null;
+      if (!opt) return '';
+      const t = (opt.text || opt.value || '').trim();
+      const nt = normalizeString(t);
+      if (!opt.value || !nt || nt === 'select' || nt.startsWith('select ') ||
+          nt === 'please select' || nt === 'seleccionar' || nt === 'selecciona' ||
+          nt === 'choose' || nt === 'none') {
+        return '';
+      }
+      return t;
+    }
+    return el.value;
+  };
+
+  // After picking from a react-select/combobox, the typed input is cleared and
+  // the chosen label is rendered in a sibling element — read it from there.
+  const readComboboxSelection = (el) => {
+    try {
+      const container = el.closest('[class*="select" i], [class*="Select"], [role="combobox"]') || el.parentElement;
+      if (container) {
+        const sv = container.querySelector('[class*="singleValue" i], [class*="single-value" i], [class*="multiValue" i]');
+        if (sv && sv.textContent && sv.textContent.trim()) return sv.textContent.trim();
+      }
+      const act = el.getAttribute && el.getAttribute('aria-activedescendant');
+      if (act) { const o = document.getElementById(act); if (o && o.textContent && o.textContent.trim()) return o.textContent.trim(); }
+    } catch (e) {}
+    return '';
+  };
+
   const discoverAndLearnCustomFields = () => {
     let pageUrl = '';
     try { pageUrl = location.href; } catch (e) {}
@@ -783,21 +935,49 @@ window.runVegaAutofill = function(profile) {
     const attachListener = (el, sig) => {
       if (el.__vegaListenerAttached) return;
       el.__vegaListenerAttached = true;
-      const handler = () => {
-        const value = el.value;
+
+      const sendSaveValue = (value) => {
         if (value == null || value === '') return;
         if (el.__vegaLastSaved === value) return; // avoid duplicate logs/saves
         el.__vegaLastSaved = value;
-        vegaLog(`✎ Answer changed — "${trunc(sig.label)}" → "${trunc(value)}" (saving to your profile/DB)`);
         try {
           chrome.runtime.sendMessage({
             type: 'vegaSaveFieldValue',
             field: { fieldKey: sig.fieldKey, label: sig.label, fieldType: sig.fieldType, options: sig.options, value, lastSeenUrl: pageUrl }
-          }, () => { void chrome.runtime.lastError; });
+          }, (resp) => {
+            if (chrome.runtime.lastError) return;
+            if (resp && resp.ok) {
+              if (resp.firstAnswer) {
+                // A brand-new field has just been recorded in the DB with your info.
+                vegaLog(`🆕 New field recorded in your profile/DB: "${trunc(sig.label)}" = "${trunc(value)}"`);
+                vegaNotify(`Saved a new answer to your Vega profile: "${trunc(sig.label)}"`);
+              } else {
+                vegaLog(`✎ Updated saved answer: "${trunc(sig.label)}" = "${trunc(value)}"`);
+              }
+            } else {
+              vegaLog(`⚠ Could not save "${trunc(sig.label)}": ${resp && resp.error ? resp.error : 'no response'}`);
+            }
+          });
         } catch (e) { /* extension context may be gone */ }
       };
+
+      const handler = () => {
+        const value = readFieldValue(el);
+        if ((value == null || value === '') && isComboboxEl(el)) {
+          // react-select clears the input after a pick and renders the chosen
+          // label elsewhere, updating asynchronously — read it shortly after.
+          setTimeout(() => { const v = readComboboxSelection(el); if (v) sendSaveValue(v); }, 350);
+          return;
+        }
+        sendSaveValue(value);
+      };
+      // `change` covers native <select> and inputs; `blur` and a delayed `input`
+      // re-read cover combobox widgets that commit a selection asynchronously.
       el.addEventListener('change', handler);
       el.addEventListener('blur', handler);
+      if (isComboboxEl(el)) {
+        el.addEventListener('input', () => setTimeout(handler, 350));
+      }
     };
     sigByElement.forEach((sig, el) => attachListener(el, sig));
 
@@ -826,7 +1006,11 @@ window.runVegaAutofill = function(profile) {
           const els = elementsByKey.get(saved.fieldKey);
           if (!els) return;
           els.forEach(el => {
-            if (setCustomValue(el, saved.value)) {
+            if (isComboboxEl(el)) {
+              // Combobox/react-select: type the saved label and pick the option.
+              el.__vegaLastSaved = saved.value; // pre-set so the resulting change isn't re-saved
+              selectFromTypeahead(el, saved.value); // logs its own success/failure
+            } else if (setCustomValue(el, saved.value)) {
               learnedFilled++;
               filledCount++;
               highlight(el);

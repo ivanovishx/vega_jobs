@@ -23,6 +23,8 @@ export default function CandidateProfile() {
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
   const [fieldDrafts, setFieldDrafts] = useState<Record<string, string>>({});
   const [savingFieldId, setSavingFieldId] = useState<string | null>(null);
+  const [skillsOpen, setSkillsOpen] = useState(true);
+  const [fieldsOpen, setFieldsOpen] = useState(false);
 
   useEffect(() => {
     fetchProfile().then(setProfile).catch(console.error);
@@ -301,9 +303,17 @@ export default function CandidateProfile() {
           </div>
 
           <div className="col-span-6">
-            <h3 className="text-lg font-medium leading-6 text-gray-900 dark:text-zinc-100 mt-6 mb-2 border-b pb-2">Resume Parsing & Keywords</h3>
+            <button
+              type="button"
+              onClick={() => setSkillsOpen(o => !o)}
+              className="w-full flex items-center justify-between text-left mt-6 mb-2 border-b pb-2"
+            >
+              <span className="text-lg font-medium leading-6 text-gray-900 dark:text-zinc-100">Resume Parsing &amp; Keywords{profile.resumeKeywords?.length ? ` (${profile.resumeKeywords.length})` : ''}</span>
+              <svg className={`h-5 w-5 text-gray-400 transition-transform ${skillsOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+            </button>
+            {skillsOpen && (<>
             <p className="text-sm text-gray-500 dark:text-zinc-400 mb-4">Upload your PDF resume to automatically extract keywords, or manage them manually. These keywords are used by the Chrome Extension to calculate a Match Score for new jobs.</p>
-            
+
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 dark:text-zinc-300 mb-1">Upload Resume (PDF)</label>
               <input 
@@ -369,6 +379,7 @@ export default function CandidateProfile() {
                 Add
               </button>
             </div>
+            </>)}
           </div>
 
           <div className="col-span-6">
@@ -439,7 +450,15 @@ export default function CandidateProfile() {
           </div>
 
           <div className="col-span-6">
-            <h3 className="text-lg font-medium leading-6 text-gray-900 dark:text-zinc-100 mt-6 mb-2 border-b pb-2">Learned Application Fields</h3>
+            <button
+              type="button"
+              onClick={() => setFieldsOpen(o => !o)}
+              className="w-full flex items-center justify-between text-left mt-6 mb-2 border-b pb-2"
+            >
+              <span className="text-lg font-medium leading-6 text-gray-900 dark:text-zinc-100">Learned Application Fields{customFields.length ? ` (${customFields.length})` : ''}</span>
+              <svg className={`h-5 w-5 text-gray-400 transition-transform ${fieldsOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+            </button>
+            {fieldsOpen && (<>
             <p className="text-sm text-gray-500 dark:text-zinc-400 mb-4">
               Custom questions the Chrome extension discovered on application forms. New questions appear here automatically when you autofill a form; whatever you type into them gets remembered and reused on similar forms next time. These are unique to your account.
             </p>
@@ -499,6 +518,7 @@ export default function CandidateProfile() {
                 ))}
               </div>
             )}
+            </>)}
           </div>
 
         </div>

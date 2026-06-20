@@ -71,9 +71,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(msg.field || {})
         });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const saved = await res.json();
-        sendResponse({ ok: true, saved });
+        if (!res.ok) {
+          let body = '';
+          try { body = (await res.text()).slice(0, 200); } catch (e) {}
+          throw new Error(`HTTP ${res.status}${body ? ' — ' + body : ''}`);
+        }
+        const data = await res.json();
+        // Current backend returns { field, created, firstAnswer }; older deploys
+        // returned the bare field object.
+        const saved = data && data.field ? data.field : data;
+        const firstAnswer = !!(data && data.firstAnswer);
+        const created = !!(data && data.created);
+        sendResponse({ ok: true, saved, firstAnswer, created });
       } catch (err) {
         console.error('vegaSaveFieldValue error:', err);
         sendResponse({ ok: false, error: err.message });
