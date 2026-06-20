@@ -44,12 +44,20 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ fields: msg.fields || [] })
         });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const fields = await res.json();
-        sendResponse({ ok: true, fields });
+        if (!res.ok) {
+          let body = '';
+          try { body = (await res.text()).slice(0, 200); } catch (e) {}
+          throw new Error(`HTTP ${res.status}${body ? ' — ' + body : ''}`);
+        }
+        const data = await res.json();
+        // Backend may return either a bare array (older deploy) or
+        // { fields, createdKeys } (current). Normalize to both.
+        const fields = Array.isArray(data) ? data : (data.fields || []);
+        const createdKeys = Array.isArray(data) ? [] : (data.createdKeys || []);
+        sendResponse({ ok: true, fields, createdKeys });
       } catch (err) {
         console.error('vegaDiscoverFields error:', err);
-        sendResponse({ ok: false, error: err.message, fields: [] });
+        sendResponse({ ok: false, error: err.message, fields: [], createdKeys: [] });
       }
     })();
     return true; // keep the message channel open for the async response
