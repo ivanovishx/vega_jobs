@@ -24,7 +24,7 @@ export default function CandidateProfile() {
   const [fieldDrafts, setFieldDrafts] = useState<Record<string, string>>({});
   const [savingFieldId, setSavingFieldId] = useState<string | null>(null);
   const [skillsOpen, setSkillsOpen] = useState(true);
-  const [fieldsOpen, setFieldsOpen] = useState(false);
+  const [fieldsOpen, setFieldsOpen] = useState(true);
 
   useEffect(() => {
     fetchProfile().then(setProfile).catch(console.error);
@@ -479,15 +479,22 @@ export default function CandidateProfile() {
                         Delete
                       </button>
                     </div>
-                    {field.options && field.options.length > 0 && field.options.length <= 25 ? (
-                      <select
-                        value={fieldDrafts[field.id] ?? ''}
-                        onChange={e => setFieldDrafts({ ...fieldDrafts, [field.id]: e.target.value })}
-                        className="mt-1 block w-full shadow-sm sm:text-sm focus:ring-indigo-500 focus:border-indigo-500 border-gray-300 dark:border-white/15 rounded-md p-2 border"
-                      >
-                        <option value="">Select...</option>
-                        {field.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                      </select>
+                    {field.options && field.options.length > 0 ? (
+                      <>
+                        <select
+                          value={fieldDrafts[field.id] ?? ''}
+                          onChange={e => setFieldDrafts({ ...fieldDrafts, [field.id]: e.target.value })}
+                          className="mt-1 block w-full shadow-sm sm:text-sm focus:ring-indigo-500 focus:border-indigo-500 border-gray-300 dark:border-white/15 rounded-md p-2 border"
+                        >
+                          <option value="">Select...</option>
+                          {/* keep a previously-saved answer selectable even if it isn't in the captured option list */}
+                          {fieldDrafts[field.id] && !field.options.includes(fieldDrafts[field.id]) && (
+                            <option value={fieldDrafts[field.id]}>{fieldDrafts[field.id]}</option>
+                          )}
+                          {field.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                        </select>
+                        <p className="mt-1 text-xs text-gray-400 dark:text-zinc-500">Dropdown field · {field.options.length} option{field.options.length === 1 ? '' : 's'} captured from the form</p>
+                      </>
                     ) : field.fieldType === 'textarea' ? (
                       <textarea
                         value={fieldDrafts[field.id] ?? ''}

@@ -824,7 +824,15 @@ window.runVegaAutofill = function(profile) {
     if (el.tagName === 'SELECT') {
       for (const opt of el.options) {
         const t = (opt.text || opt.value || '').trim();
-        if (t) options.push(t);
+        if (!t) continue;
+        const nt = normalizeString(t);
+        // Skip placeholder options so the saved dropdown is clean.
+        if (!opt.value || nt === 'select' || nt.startsWith('select ') || nt === 'please select' ||
+            nt === 'choose' || nt === 'seleccionar' || nt === 'selecciona' || nt === 'none') {
+          continue;
+        }
+        options.push(t);
+        if (options.length >= 100) break; // guard against runaway lists
       }
     }
     return { fieldKey, label, fieldType, options };
