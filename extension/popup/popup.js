@@ -297,6 +297,21 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   clearLogsBtn.addEventListener('click', () => { debugLogs.value = ''; });
 
+  // ── Live autofill activity ───────────────────────────────────────────────────
+  // The content script relays what Autofill is doing — which fields it filled and
+  // with what, when it detects/saves a brand-new field, and when an answer the
+  // user edits is synced to the DB/profile. Surface it in the Debug Logs panel.
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (!msg || msg.type !== 'vegaLog') return;
+    logDebug(msg.message);
+    // Auto-reveal the panel so the activity is visible without toggling.
+    if (debugLogs.style.display !== 'block') {
+      debugLogs.style.display = 'block';
+      clearLogsBtn.style.display = 'block';
+      debugToggleBtn.textContent = 'Hide Debug Logs';
+    }
+  });
+
   // ── Autofill ───────────────────────────────────────────────────────────────
 
   btn.addEventListener('click', async () => {

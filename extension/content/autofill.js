@@ -1,6 +1,25 @@
 window.runVegaAutofill = function(profile) {
   console.log("Vega Autofill started with profile:", profile);
 
+  // Mirror key autofill events to the extension popup's Debug Logs panel so the
+  // user can see, in the same extension, which fields were filled and with what,
+  // when a brand-new field was detected and saved to their profile/DB, and when
+  // a value they edited gets synced back. Falls back to console only when the
+  // popup is closed.
+  const trunc = (v) => {
+    const s = v == null ? '' : String(v);
+    return s.length > 80 ? s.slice(0, 77) + '…' : s;
+  };
+  const vegaLog = (msg) => {
+    console.log(msg);
+    try {
+      chrome.runtime.sendMessage({ type: 'vegaLog', message: msg }, () => {
+        // Swallow "Could not establish connection" when the popup is closed.
+        void chrome.runtime.lastError;
+      });
+    } catch (e) { /* extension context unavailable */ }
+  };
+
   // Helper function to normalize text (strip accents, spaces, lowercase)
   const normalizeString = (str) => {
     if (!str) return '';
@@ -416,7 +435,7 @@ window.runVegaAutofill = function(profile) {
         setNativeValue(input, valToSet);
         filledCount++;
         highlight(input);
-        console.log(`Vega: Filled "${bestKey}" with "${valToSet}"`);
+        vegaLog(`✓ Filled field "${bestKey}" → "${trunc(valToSet)}"`);
       } else {
         console.log(`Vega: Skipped filling "${bestKey}" (empty value or already filled: "${input.value}")`);
       }
@@ -555,6 +574,7 @@ window.runVegaAutofill = function(profile) {
         selectedRadio.dispatchEvent(new Event('click', { bubbles: true }));
         filledCount++;
         highlight(selectedRadio.closest('label') || selectedRadio);
+        vegaLog(`✓ Selected option "${trunc(selectedRadio.value || targetSelection)}" for a multiple-choice question`);
       }
     }
   }
@@ -588,6 +608,7 @@ window.runVegaAutofill = function(profile) {
         checkbox.dispatchEvent(new Event('change', { bubbles: true }));
         filledCount++;
         highlight(checkbox.closest('label') || checkbox);
+        vegaLog(`✓ ${targetState ? 'Checked' : 'Unchecked'} sponsorship checkbox`);
       }
     }
   });
@@ -613,6 +634,7 @@ window.runVegaAutofill = function(profile) {
             select.dispatchEvent(new Event('change', { bubbles: true }));
             filledCount++;
             highlight(select);
+            vegaLog(`✓ Selected country "${trunc(option.text || option.value)}"`);
           }
           return;
         }
@@ -644,6 +666,7 @@ window.runVegaAutofill = function(profile) {
             select.dispatchEvent(new Event('change', { bubbles: true }));
             filledCount++;
             highlight(select);
+            vegaLog(`✓ Selected "${trunc(option.text || option.value)}" from a dropdown`);
           }
           return;
         }
@@ -754,7 +777,7 @@ window.runVegaAutofill = function(profile) {
       console.log('Vega: no custom fields discovered on this page.');
       return;
     }
-    console.log(`Vega: discovered ${discovered.length} custom field(s):`, discovered.map(d => d.label));
+    vegaLog(`🔍 Scanned page: ${discovered.length} custom question(s) found — checking your saved answers…`);
 
     // Attach listeners so user edits are remembered, regardless of backend state.
     const attachListener = (el, sig) => {
@@ -763,11 +786,14 @@ window.runVegaAutofill = function(profile) {
       const handler = () => {
         const value = el.value;
         if (value == null || value === '') return;
+        if (el.__vegaLastSaved === value) return; // avoid duplicate logs/saves
+        el.__vegaLastSaved = value;
+        vegaLog(`✎ Answer changed — "${trunc(sig.label)}" → "${trunc(value)}" (saving to your profile/DB)`);
         try {
           chrome.runtime.sendMessage({
             type: 'vegaSaveFieldValue',
             field: { fieldKey: sig.fieldKey, label: sig.label, fieldType: sig.fieldType, options: sig.options, value, lastSeenUrl: pageUrl }
-          }, () => { /* ignore response / errors */ });
+          }, () => { void chrome.runtime.lastError; });
         } catch (e) { /* extension context may be gone */ }
       };
       el.addEventListener('change', handler);
@@ -778,12 +804,24 @@ window.runVegaAutofill = function(profile) {
     // Sync with backend: record new fields, retrieve saved answers.
     try {
       chrome.runtime.sendMessage({ type: 'vegaDiscoverFields', fields: discovered }, (resp) => {
-        if (!resp || !resp.ok || !Array.isArray(resp.fields)) {
-          console.log('Vega: custom field sync failed or returned nothing.');
+        if (!resp || !resp.ok) {
+          vegaLog('⚠ Could not sync custom fields with Vega (are you signed in?).');
           return;
         }
+        const savedFields = Array.isArray(resp.fields) ? resp.fields : [];
+        const createdKeys = new Set(resp.createdKeys || []);
+
+        // Report brand-new questions that were just recorded to the profile/DB.
+        if (createdKeys.size > 0) {
+          discovered.forEach(d => {
+            if (createdKeys.has(d.fieldKey)) {
+              vegaLog(`🆕 New field saved to your profile (needs an answer): "${trunc(d.label)}"`);
+            }
+          });
+        }
+
         let learnedFilled = 0;
-        resp.fields.forEach(saved => {
+        savedFields.forEach(saved => {
           if (saved.value == null || saved.value === '') return;
           const els = elementsByKey.get(saved.fieldKey);
           if (!els) return;
@@ -792,10 +830,14 @@ window.runVegaAutofill = function(profile) {
               learnedFilled++;
               filledCount++;
               highlight(el);
+              el.__vegaLastSaved = saved.value; // don't re-log this as a user change
+              vegaLog(`✓ Filled remembered field "${trunc(saved.label)}" → "${trunc(saved.value)}"`);
             }
           });
         });
-        if (learnedFilled > 0) console.log(`Vega: filled ${learnedFilled} remembered custom field(s).`);
+        if (learnedFilled === 0 && createdKeys.size === 0) {
+          vegaLog('• No remembered answers matched and no new fields to add.');
+        }
       });
     } catch (e) {
       console.warn('Vega: could not send discovered fields:', e);
@@ -862,6 +904,7 @@ window.runVegaAutofill = function(profile) {
             filledCount++;
             injected++;
             highlight(fileInput.closest('label, div, section') || fileInput);
+            vegaLog(`✓ Attached resume "${trunc(result.resumeFileName)}" to the upload field`);
             console.log(`Vega: Successfully injected resume into:`, fileInput);
           } catch (e) {
             console.warn("Vega: Resume injection failed for input:", e);
@@ -889,6 +932,7 @@ window.runVegaAutofill = function(profile) {
             filledCount++;
             injected++;
             highlight(fallbackInput.closest('label, div, section') || fallbackInput);
+            vegaLog(`✓ Attached resume "${trunc(result.resumeFileName)}" to the upload field`);
             console.log(`Vega: Fallback resume injection into:`, fallbackInput);
           } catch (e) {
             console.warn("Vega: Fallback resume injection failed:", e);

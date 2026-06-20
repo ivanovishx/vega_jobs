@@ -39,6 +39,7 @@ export const customFieldService = {
   // is explicitly provided. Always returns the full, up-to-date list so the
   // extension can fill any fields it already has answers for.
   async discover(userId: string, fields: DiscoveredField[]) {
+    const createdKeys: string[] = [];
     for (const f of fields) {
       const fieldKey = f.fieldKey ? normalizeFieldKey(f.fieldKey) : normalizeFieldKey(f.label);
       if (!fieldKey || !f.label) continue;
@@ -59,6 +60,7 @@ export const customFieldService = {
             lastSeenUrl: f.lastSeenUrl ?? null,
           },
         });
+        createdKeys.push(fieldKey);
       } else {
         // Refresh metadata (label wording / new options / last seen). Only
         // overwrite the value when the caller explicitly sends a non-empty one.
@@ -80,7 +82,8 @@ export const customFieldService = {
       }
     }
 
-    return this.list(userId);
+    const all = await this.list(userId);
+    return { fields: all, createdKeys };
   },
 
   // Save/overwrite the answer for a single field (used both by the UI and by
