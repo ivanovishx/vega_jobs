@@ -34,6 +34,23 @@ export const updateProfileKeywords = async (keywords: string[]) => {
   return res.data;
 };
 
+// ── Custom (learned) application fields ─────────────────────────────────────
+
+export const fetchCustomFields = async () => {
+  const res = await api.get('profile/custom-fields');
+  return res.data;
+};
+
+export const updateCustomFieldValue = async (id: string, value: string) => {
+  const res = await api.put(`profile/custom-fields/${id}`, { value });
+  return res.data;
+};
+
+export const deleteCustomField = async (id: string) => {
+  const res = await api.delete(`profile/custom-fields/${id}`);
+  return res.data;
+};
+
 export const fetchDashboardSummary = async () => {
   const res = await api.get('applications/summary');
   return res.data;

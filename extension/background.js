@@ -30,6 +30,53 @@ async function authFetch(url, options = {}) {
   return fetch(url, { ...options, headers });
 }
 
+// ── Custom field learning ────────────────────────────────────────────────────
+// The content script can't talk to the authenticated backend directly, so it
+// relays discovered fields and user edits through these messages.
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (!msg || !msg.type) return false;
+
+  if (msg.type === 'vegaDiscoverFields') {
+    (async () => {
+      try {
+        const res = await authFetch(`${BACKEND_URL}/api/profile/custom-fields/discover`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fields: msg.fields || [] })
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const fields = await res.json();
+        sendResponse({ ok: true, fields });
+      } catch (err) {
+        console.error('vegaDiscoverFields error:', err);
+        sendResponse({ ok: false, error: err.message, fields: [] });
+      }
+    })();
+    return true; // keep the message channel open for the async response
+  }
+
+  if (msg.type === 'vegaSaveFieldValue') {
+    (async () => {
+      try {
+        const res = await authFetch(`${BACKEND_URL}/api/profile/custom-fields/value`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(msg.field || {})
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const saved = await res.json();
+        sendResponse({ ok: true, saved });
+      } catch (err) {
+        console.error('vegaSaveFieldValue error:', err);
+        sendResponse({ ok: false, error: err.message });
+      }
+    })();
+    return true;
+  }
+
+  return false;
+});
+
 chrome.commands.onCommand.addListener(async (command) => {
   if (command === 'autofill') {
     console.log("Triggering autofill via keyboard shortcut");

@@ -1,15 +1,59 @@
 import { useEffect, useState } from 'react';
-import { fetchProfile, updateProfile, uploadResumePdf, updateProfileKeywords } from '../api/client';
+import {
+  fetchProfile, updateProfile, uploadResumePdf, updateProfileKeywords,
+  fetchCustomFields, updateCustomFieldValue, deleteCustomField,
+} from '../api/client';
+
+interface CustomField {
+  id: string;
+  fieldKey: string;
+  label: string;
+  fieldType: string;
+  value: string | null;
+  options: string[];
+  lastSeenUrl?: string | null;
+  updatedAt: string;
+}
 
 export default function CandidateProfile() {
   const [profile, setProfile] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [newKeyword, setNewKeyword] = useState('');
+  const [customFields, setCustomFields] = useState<CustomField[]>([]);
+  const [fieldDrafts, setFieldDrafts] = useState<Record<string, string>>({});
+  const [savingFieldId, setSavingFieldId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchProfile().then(setProfile).catch(console.error);
+    fetchCustomFields().then((fields: CustomField[]) => {
+      setCustomFields(fields);
+      setFieldDrafts(Object.fromEntries(fields.map(f => [f.id, f.value ?? ''])));
+    }).catch(console.error);
   }, []);
+
+  const handleSaveCustomField = async (id: string) => {
+    setSavingFieldId(id);
+    try {
+      const updated = await updateCustomFieldValue(id, fieldDrafts[id] ?? '');
+      setCustomFields(prev => prev.map(f => (f.id === id ? updated : f)));
+    } catch (err) {
+      console.error(err);
+      alert('Failed to save field.');
+    }
+    setSavingFieldId(null);
+  };
+
+  const handleDeleteCustomField = async (id: string) => {
+    if (!confirm('Delete this saved field? The extension will treat it as new next time.')) return;
+    try {
+      await deleteCustomField(id);
+      setCustomFields(prev => prev.filter(f => f.id !== id));
+    } catch (err) {
+      console.error(err);
+      alert('Failed to delete field.');
+    }
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -392,6 +436,69 @@ export default function CandidateProfile() {
               <option value="No, I don't have a disability">No, I don't have a disability</option>
               <option value="I don't wish to answer">I don't wish to answer</option>
             </select>
+          </div>
+
+          <div className="col-span-6">
+            <h3 className="text-lg font-medium leading-6 text-gray-900 dark:text-zinc-100 mt-6 mb-2 border-b pb-2">Learned Application Fields</h3>
+            <p className="text-sm text-gray-500 dark:text-zinc-400 mb-4">
+              Custom questions the Chrome extension discovered on application forms. New questions appear here automatically when you autofill a form; whatever you type into them gets remembered and reused on similar forms next time. These are unique to your account.
+            </p>
+
+            {customFields.length === 0 ? (
+              <p className="text-sm text-gray-400 dark:text-zinc-500">No custom fields learned yet. Press “Autofill Form” on a job application and any unrecognized questions will show up here.</p>
+            ) : (
+              <div className="space-y-3">
+                {customFields.map(field => (
+                  <div key={field.id} className="rounded-md border border-gray-200 dark:border-white/10 p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-zinc-300">{field.label}</label>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteCustomField(field.id)}
+                        className="text-xs text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-medium flex-shrink-0"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                    {field.options && field.options.length > 0 && field.options.length <= 25 ? (
+                      <select
+                        value={fieldDrafts[field.id] ?? ''}
+                        onChange={e => setFieldDrafts({ ...fieldDrafts, [field.id]: e.target.value })}
+                        className="mt-1 block w-full shadow-sm sm:text-sm focus:ring-indigo-500 focus:border-indigo-500 border-gray-300 dark:border-white/15 rounded-md p-2 border"
+                      >
+                        <option value="">Select...</option>
+                        {field.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                      </select>
+                    ) : field.fieldType === 'textarea' ? (
+                      <textarea
+                        value={fieldDrafts[field.id] ?? ''}
+                        onChange={e => setFieldDrafts({ ...fieldDrafts, [field.id]: e.target.value })}
+                        rows={3}
+                        className="mt-1 block w-full shadow-sm sm:text-sm focus:ring-indigo-500 focus:border-indigo-500 border-gray-300 dark:border-white/15 rounded-md p-2 border"
+                      />
+                    ) : (
+                      <input
+                        type="text"
+                        value={fieldDrafts[field.id] ?? ''}
+                        onChange={e => setFieldDrafts({ ...fieldDrafts, [field.id]: e.target.value })}
+                        className="mt-1 block w-full shadow-sm sm:text-sm focus:ring-indigo-500 focus:border-indigo-500 border-gray-300 dark:border-white/15 rounded-md p-2 border"
+                      />
+                    )}
+                    <div className="mt-2 flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => handleSaveCustomField(field.id)}
+                        disabled={savingFieldId === field.id || (fieldDrafts[field.id] ?? '') === (field.value ?? '')}
+                        className="inline-flex justify-center py-1.5 px-3 border border-transparent shadow-sm text-xs font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40"
+                      >
+                        {savingFieldId === field.id ? 'Saving...' : 'Save answer'}
+                      </button>
+                      {!field.value && <span className="text-xs text-amber-600 dark:text-amber-400">Needs an answer</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
         </div>

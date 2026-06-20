@@ -39,6 +39,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const loginEmail    = document.getElementById('loginEmail');
   const loginPassword = document.getElementById('loginPassword');
   const loginError    = document.getElementById('loginError');
+  const googleLoginBtn = document.getElementById('googleLoginBtn');
   const debugToggleBtn = document.getElementById('debugToggleBtn');
   const debugLogs     = document.getElementById('debugLogs');
   const clearLogsBtn  = document.getElementById('clearLogsBtn');
@@ -63,10 +64,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const email = loginEmail.value.trim();
     const password = loginPassword.value;
     if (!email || !password) {
-      loginError.textContent = 'Ingresa tu correo y contraseña.';
+      loginError.textContent = 'Enter your email and password.';
       return;
     }
-    loginBtn.textContent = 'Ingresando...';
+    loginBtn.textContent = 'Signing in...';
     loginBtn.disabled = true;
     loginError.textContent = '';
 
@@ -89,8 +90,85 @@ document.addEventListener('DOMContentLoaded', async () => {
       loginError.textContent = err.message;
     }
 
-    loginBtn.textContent = 'Iniciar sesión';
+    loginBtn.textContent = 'Sign in';
     loginBtn.disabled = false;
+  });
+
+  // ── Login with Google ─────────────────────────────────────────────────────
+  // Extensions can't run the passport redirect flow inline in a popup, so we
+  // open the existing backend /auth/google route in a normal tab. The same
+  // backend flow used by the frontend runs there (Google consent ->
+  // callback -> sets the `token` cookie -> redirects to the frontend). We
+  // watch for that cookie to appear on BACKEND_URL, then pick it up here.
+
+  googleLoginBtn.addEventListener('click', async () => {
+    loginError.textContent = '';
+    let opTabId = null;
+    let settled = false;
+    let listenersAttached = false;
+    let timeoutId = null;
+
+    const cleanup = () => {
+      if (listenersAttached) {
+        chrome.cookies.onChanged.removeListener(onCookieChanged);
+        chrome.tabs.onRemoved.removeListener(onTabRemoved);
+        listenersAttached = false;
+      }
+      if (timeoutId !== null) clearTimeout(timeoutId);
+      googleLoginBtn.disabled = false;
+    };
+
+    const finish = async (token) => {
+      if (settled) return;
+      settled = true;
+      authToken = token;
+      chrome.storage.local.set({ authToken }, () => {
+        logDebug('Google login: token saved to storage');
+      });
+      cleanup();
+      if (opTabId !== null) {
+        chrome.tabs.remove(opTabId).catch(() => {});
+      }
+      await loadProfile();
+    };
+
+    function onCookieChanged(changeInfo) {
+      const { cookie, removed } = changeInfo;
+      if (removed || cookie.name !== 'token') return;
+      if (!BACKEND_URL.includes(cookie.domain.replace(/^\./, ''))) return;
+      logDebug('Google login: token cookie detected');
+      finish(cookie.value);
+    }
+
+    function onTabRemoved(tabId) {
+      if (tabId !== opTabId || settled) return;
+      // Tab was closed without completing login.
+      settled = true;
+      cleanup();
+      loginError.textContent = 'Google sign-in was cancelled.';
+    }
+
+    try {
+      googleLoginBtn.disabled = true;
+
+      chrome.cookies.onChanged.addListener(onCookieChanged);
+      chrome.tabs.onRemoved.addListener(onTabRemoved);
+      listenersAttached = true;
+
+      timeoutId = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        loginError.textContent = 'Timed out. Please try again.';
+      }, 120000);
+
+      const tab = await chrome.tabs.create({ url: `${BACKEND_URL}/auth/google` });
+      opTabId = tab.id;
+    } catch (err) {
+      settled = true;
+      cleanup();
+      loginError.textContent = 'Could not open the Google sign-in window: ' + err.message;
+    }
   });
 
   logoutBtn.addEventListener('click', () => {
@@ -103,7 +181,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── Load profile ───────────────────────────────────────────────────────────
 
   async function loadProfile() {
-    statusEl.textContent = 'Cargando perfil...';
+    statusEl.textContent = 'Loading profile...';
     errorEl.textContent = '';
 
     try {
@@ -122,22 +200,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         authToken = null;
         chrome.storage.local.remove('authToken');
         showLogin();
-        loginError.textContent = 'Sesión expirada. Inicia sesión de nuevo.';
+        loginError.textContent = 'Session expired. Please sign in again.';
         return;
       }
 
       if (!res.ok) throw new Error(`HTTP error: ${res.status}`);
 
       candidateProfile = await res.json();
-      const name = candidateProfile?.user?.name || candidateProfile?.user?.email || 'Usuario';
-      statusEl.textContent = `Perfil: ${name}`;
+      const name = candidateProfile?.user?.name || candidateProfile?.user?.email || 'User';
+      statusEl.textContent = `Profile: ${name}`;
       btn.disabled = false;
       showMain();
     } catch (err) {
       logDebug(`Profile fetch error: ${err.message}`);
-      statusEl.textContent = 'Error al conectar con Vega.';
+      statusEl.textContent = 'Error connecting to Vega.';
       if (err.name === 'AbortError') {
-        errorEl.textContent = 'Timeout. El backend puede estar iniciando (Render). Intenta en 30s.';
+        errorEl.textContent = 'Timeout. The backend may be starting up (Render). Try again in 30s.';
       } else {
         errorEl.textContent = err.message;
       }

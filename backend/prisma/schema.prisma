@@ -25,6 +25,7 @@ model User {
   jobs             Job[]
   applications     Application[]
   resumes          Resume[]
+  customFields     CustomField[]
   impersonationsAsAdmin  ImpersonationLog[] @relation("ImpersonationAdmin")
   impersonationsAsTarget ImpersonationLog[] @relation("ImpersonationTarget")
 }
@@ -67,6 +68,26 @@ model CandidateProfile {
   disabilityStatus  String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+}
+
+// Learned application questions captured by the Chrome extension.
+// One row per (user, fieldKey) so answers are remembered and reused
+// across applications, and surfaced/editable in the candidate profile UI.
+model CustomField {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fieldKey  String   // normalized signature of the question, used to match the same field across sites
+  label     String   // human-readable question / label as seen on the form
+  fieldType String   @default("text") // text, textarea, select, radio, checkbox
+  value     String?  @db.Text // the saved answer (null until the user provides one)
+  options   String[] @default([]) // possible choices seen for select/radio fields
+  lastSeenUrl String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, fieldKey])
+  @@index([userId])
 }
 
 model Resume {
