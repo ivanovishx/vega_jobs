@@ -805,7 +805,7 @@ window.runVegaAutofill = function(profile) {
     try {
       chrome.runtime.sendMessage({ type: 'vegaDiscoverFields', fields: discovered }, (resp) => {
         if (!resp || !resp.ok) {
-          vegaLog('⚠ Could not sync custom fields with Vega (are you signed in?).');
+          vegaLog(`⚠ Custom-field sync failed: ${resp && resp.error ? resp.error : 'no response from background'}`);
           return;
         }
         const savedFields = Array.isArray(resp.fields) ? resp.fields : [];
