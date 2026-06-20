@@ -269,6 +269,58 @@ window.runVegaAutofill = function(profile) {
 
   let filledCount = 0;
 
+  // Elements handled by the standard mapping above. Anything NOT in here is a
+  // candidate "custom field" we should learn and remember.
+  const matchedElements = new WeakSet();
+
+  // Extract a clean, human-readable question/label for a field — preferring the
+  // associated <label>, aria-label, placeholder, or wrapping label. Unlike
+  // getFieldText (which concatenates lots of attributes for fuzzy scoring), this
+  // aims for the actual question a human would read.
+  const getQuestionLabel = (el) => {
+    const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
+    try {
+      if (el.id) {
+        const lbl = document.querySelector(`label[for="${CSS.escape(el.id)}"]`);
+        if (lbl && clean(lbl.textContent)) return clean(lbl.textContent);
+      }
+      const labelledBy = el.getAttribute('aria-labelledby');
+      if (labelledBy) {
+        const txt = labelledBy.split(/\s+/).map(id => {
+          const ref = document.getElementById(id);
+          return ref ? ref.textContent : '';
+        }).join(' ');
+        if (clean(txt)) return clean(txt);
+      }
+      const wrap = el.closest('label');
+      if (wrap) {
+        const clone = wrap.cloneNode(true);
+        clone.querySelectorAll('input, textarea, select, button').forEach(n => n.remove());
+        if (clean(clone.textContent)) return clean(clone.textContent);
+      }
+      const aria = clean(el.getAttribute('aria-label'));
+      if (aria) return aria;
+      const ph = clean(el.getAttribute('placeholder'));
+      if (ph) return ph;
+      // Look upward for a nearby label/legend within the form group.
+      let cur = el.parentElement;
+      let depth = 0;
+      while (cur && depth < 3) {
+        const lbl = cur.querySelector('label, legend');
+        if (lbl) {
+          const clone = lbl.cloneNode(true);
+          clone.querySelectorAll('input, textarea, select, button').forEach(n => n.remove());
+          if (clean(clone.textContent)) return clean(clone.textContent);
+        }
+        cur = cur.parentElement;
+        depth++;
+      }
+      const nm = clean(el.getAttribute('name'));
+      if (nm) return nm;
+    } catch (e) { /* ignore */ }
+    return '';
+  };
+
   // Smart heuristic score calculator for an input field
   const getScoreForField = (input, fieldKey) => {
     let score = 0;
@@ -357,6 +409,7 @@ window.runVegaAutofill = function(profile) {
     }
 
     if (bestKey) {
+      matchedElements.add(input);
       const valToSet = fieldMapping[bestKey];
       console.log(`Vega: Matched field "${bestKey}" with score ${bestScore} for input:`, input);
       if (valToSet && (!input.value || input.value.trim() === '')) {
@@ -445,8 +498,9 @@ window.runVegaAutofill = function(profile) {
     }
 
     if (targetSelection) {
+      radios.forEach(r => matchedElements.add(r));
       let selectedRadio = null;
-      
+
       for (const radio of radios) {
         let labelText = "";
         if (radio.id) {
@@ -546,6 +600,7 @@ window.runVegaAutofill = function(profile) {
     const normLabel = normalizeString(labelText);
 
     if (normLabel.includes('country') || normLabel.includes('nationality') || normLabel.includes('pais') || normLabel.includes('nacionalidad')) {
+      matchedElements.add(select);
       const targetCountry = candidateCountry || 'united states';
       const normTarget = normalizeString(targetCountry);
       
@@ -596,16 +651,156 @@ window.runVegaAutofill = function(profile) {
     };
 
     if (normLabel.includes('gender') || normLabel.includes('sex ') || normLabel.endsWith(' sex') || normLabel.includes('genero')) {
+      matchedElements.add(select);
       matchAndSetOption(profile.gender);
     } else if (normLabel.includes('race') || normLabel.includes('ethnic') || normLabel.includes('raza') || normLabel.includes('etnia')) {
+      matchedElements.add(select);
       matchAndSetOption(profile.race);
     } else if (normLabel.includes('veteran') || normLabel.includes('veterano')) {
+      matchedElements.add(select);
       matchAndSetOption(profile.veteranStatus);
     } else if (normLabel.includes('disability') || normLabel.includes('handicap') || normLabel.includes('discapacidad')) {
+      matchedElements.add(select);
       matchAndSetOption(profile.disabilityStatus);
     }
   });
   }; // end fillTextAndFormFields
+
+  // ── Custom field learning ──────────────────────────────────────────────────
+  // After standard fields are filled, find every remaining (unmatched) input the
+  // candidate would have to answer manually, build a stable signature for each,
+  // and sync with the backend: previously-answered fields get filled in, brand
+  // new ones get recorded so they appear in the profile UI. We also watch these
+  // fields so any value the user types is saved and reused next time.
+
+  const buildFieldSignature = (el) => {
+    const label = getQuestionLabel(el);
+    if (!label || label.length < 2) return null;
+    // Skip noisy/huge labels that are clearly not a single question.
+    if (label.length > 400) return null;
+
+    let fieldType = 'text';
+    if (el.tagName === 'TEXTAREA') fieldType = 'textarea';
+    else if (el.tagName === 'SELECT') fieldType = 'select';
+    else if (el.tagName === 'INPUT') fieldType = (el.type || 'text').toLowerCase();
+
+    const fieldKey = normalizeString(label).slice(0, 300);
+    if (!fieldKey) return null;
+
+    const options = [];
+    if (el.tagName === 'SELECT') {
+      for (const opt of el.options) {
+        const t = (opt.text || opt.value || '').trim();
+        if (t) options.push(t);
+      }
+    }
+    return { fieldKey, label, fieldType, options };
+  };
+
+  const setCustomValue = (el, value) => {
+    if (value == null || value === '') return false;
+    if (el.tagName === 'SELECT') {
+      const normTarget = normalizeString(value);
+      for (const option of el.options) {
+        const normOpt = normalizeString(option.text || option.value);
+        if (normOpt === normTarget || normOpt.includes(normTarget) || normTarget.includes(normOpt)) {
+          if (el.value !== option.value) {
+            el.value = option.value;
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+            return true;
+          }
+          return false;
+        }
+      }
+      return false;
+    }
+    if (!el.value || el.value.trim() === '') {
+      setNativeValue(el, value);
+      return true;
+    }
+    return false;
+  };
+
+  const discoverAndLearnCustomFields = () => {
+    let pageUrl = '';
+    try { pageUrl = location.href; } catch (e) {}
+
+    const candidates = queryAllIncludingShadows('input, textarea, select');
+    const sigByElement = new Map();   // element -> signature
+    const elementsByKey = new Map();  // fieldKey -> [elements]
+    const seen = new Map();           // fieldKey -> signature (dedup for payload)
+
+    candidates.forEach(el => {
+      if (matchedElements.has(el)) return;
+      if (el.disabled || el.readOnly) return;
+      if (el.tagName === 'INPUT' && SKIP_TYPES.has((el.type || '').toLowerCase())) return;
+      // Ignore zero-size / hidden fields.
+      try {
+        const rect = el.getBoundingClientRect();
+        if (rect.width === 0 && rect.height === 0) return;
+      } catch (e) {}
+
+      const sig = buildFieldSignature(el);
+      if (!sig) return;
+
+      sigByElement.set(el, sig);
+      if (!elementsByKey.has(sig.fieldKey)) elementsByKey.set(sig.fieldKey, []);
+      elementsByKey.get(sig.fieldKey).push(el);
+      if (!seen.has(sig.fieldKey)) seen.set(sig.fieldKey, { ...sig, lastSeenUrl: pageUrl });
+    });
+
+    const discovered = Array.from(seen.values());
+    if (discovered.length === 0) {
+      console.log('Vega: no custom fields discovered on this page.');
+      return;
+    }
+    console.log(`Vega: discovered ${discovered.length} custom field(s):`, discovered.map(d => d.label));
+
+    // Attach listeners so user edits are remembered, regardless of backend state.
+    const attachListener = (el, sig) => {
+      if (el.__vegaListenerAttached) return;
+      el.__vegaListenerAttached = true;
+      const handler = () => {
+        const value = el.value;
+        if (value == null || value === '') return;
+        try {
+          chrome.runtime.sendMessage({
+            type: 'vegaSaveFieldValue',
+            field: { fieldKey: sig.fieldKey, label: sig.label, fieldType: sig.fieldType, options: sig.options, value, lastSeenUrl: pageUrl }
+          }, () => { /* ignore response / errors */ });
+        } catch (e) { /* extension context may be gone */ }
+      };
+      el.addEventListener('change', handler);
+      el.addEventListener('blur', handler);
+    };
+    sigByElement.forEach((sig, el) => attachListener(el, sig));
+
+    // Sync with backend: record new fields, retrieve saved answers.
+    try {
+      chrome.runtime.sendMessage({ type: 'vegaDiscoverFields', fields: discovered }, (resp) => {
+        if (!resp || !resp.ok || !Array.isArray(resp.fields)) {
+          console.log('Vega: custom field sync failed or returned nothing.');
+          return;
+        }
+        let learnedFilled = 0;
+        resp.fields.forEach(saved => {
+          if (saved.value == null || saved.value === '') return;
+          const els = elementsByKey.get(saved.fieldKey);
+          if (!els) return;
+          els.forEach(el => {
+            if (setCustomValue(el, saved.value)) {
+              learnedFilled++;
+              filledCount++;
+              highlight(el);
+            }
+          });
+        });
+        if (learnedFilled > 0) console.log(`Vega: filled ${learnedFilled} remembered custom field(s).`);
+      });
+    } catch (e) {
+      console.warn('Vega: could not send discovered fields:', e);
+    }
+  };
 
   // 5. Resume upload — runs first; text fields are filled after Angular settles
   if (chrome && chrome.storage && chrome.storage.local) {
@@ -614,6 +809,7 @@ window.runVegaAutofill = function(profile) {
       if (!result.resumeData || !result.resumeFileName) {
         console.log("Vega: No resume found in storage. Filling text fields only.");
         fillTextAndFormFields();
+        discoverAndLearnCustomFields();
         showToast();
         return;
       }
@@ -706,12 +902,14 @@ window.runVegaAutofill = function(profile) {
       // 1000ms covers even slow Angular change detection cycles.
       setTimeout(() => {
         fillTextAndFormFields();
+        discoverAndLearnCustomFields();
         showToast();
       }, 1000);
     });
   } else {
     // No resume storage — fill text fields immediately
     fillTextAndFormFields();
+    discoverAndLearnCustomFields();
     showToast();
   }
 

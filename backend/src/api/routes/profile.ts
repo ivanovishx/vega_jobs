@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { candidateProfileService } from '../../services/candidateProfileService';
+import { customFieldService } from '../../services/customFieldService';
 import { PDFParse } from 'pdf-parse';
 import multer from 'multer';
 import type { AuthRequest } from '../../middleware/auth';
@@ -87,6 +88,73 @@ router.put('/keywords', async (req, res) => {
     });
 
     res.json(updated);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Custom (learned) application fields ──────────────────────────────────────
+
+// List all custom fields for the signed-in user.
+router.get('/custom-fields', async (req, res) => {
+  try {
+    const userId = (req as AuthRequest).userId!;
+    const fields = await customFieldService.list(userId);
+    res.json(fields);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Extension reports the fields it found on a page. New ones are recorded
+// (with no answer yet); the full list is returned so the extension can fill
+// any fields the user has already answered.
+router.post('/custom-fields/discover', async (req, res) => {
+  try {
+    const userId = (req as AuthRequest).userId!;
+    const fields = Array.isArray(req.body?.fields) ? req.body.fields : [];
+    const result = await customFieldService.discover(userId, fields);
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Save/overwrite a single field's answer — used by the extension when the user
+// edits a field on the page, and by the profile UI.
+router.post('/custom-fields/value', async (req, res) => {
+  try {
+    const userId = (req as AuthRequest).userId!;
+    const { fieldKey, label, value, fieldType, options, lastSeenUrl } = req.body || {};
+    if (!label && !fieldKey) {
+      return res.status(400).json({ error: 'label or fieldKey is required' });
+    }
+    const saved = await customFieldService.saveValue(userId, { fieldKey, label, value, fieldType, options, lastSeenUrl });
+    res.json(saved);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update a field's answer by id (profile UI).
+router.put('/custom-fields/:id', async (req, res) => {
+  try {
+    const userId = (req as AuthRequest).userId!;
+    const { value } = req.body || {};
+    const updated = await customFieldService.updateById(userId, req.params.id, value ?? null);
+    if (!updated) return res.status(404).json({ error: 'Field not found' });
+    res.json(updated);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/custom-fields/:id', async (req, res) => {
+  try {
+    const userId = (req as AuthRequest).userId!;
+    const removed = await customFieldService.remove(userId, req.params.id);
+    if (!removed) return res.status(404).json({ error: 'Field not found' });
+    res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

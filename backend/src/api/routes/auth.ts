@@ -40,16 +40,30 @@ if (googleConfigured) {
           const email = profile.emails?.[0]?.value;
           if (!email) return done(new Error('No email from Google'));
 
-          const user = await prisma.user.upsert({
-            where: { googleId: profile.id },
-            update: { name: profile.displayName, picture: profile.photos?.[0]?.value },
-            create: {
-              email,
-              googleId: profile.id,
-              name: profile.displayName,
-              picture: profile.photos?.[0]?.value,
-            },
-          });
+          // Match by email first so an existing account (e.g. created via
+          // email/password on the frontend) gets Google linked to it instead
+          // of a duplicate user being created.
+          const existingByEmail = await prisma.user.findUnique({ where: { email } });
+
+          const user = existingByEmail
+            ? await prisma.user.update({
+                where: { id: existingByEmail.id },
+                data: {
+                  googleId: existingByEmail.googleId ?? profile.id,
+                  name: existingByEmail.name ?? profile.displayName,
+                  picture: existingByEmail.picture ?? profile.photos?.[0]?.value,
+                },
+              })
+            : await prisma.user.upsert({
+                where: { googleId: profile.id },
+                update: { name: profile.displayName, picture: profile.photos?.[0]?.value },
+                create: {
+                  email,
+                  googleId: profile.id,
+                  name: profile.displayName,
+                  picture: profile.photos?.[0]?.value,
+                },
+              });
 
           await prisma.candidateProfile.upsert({
             where: { userId: user.id },
@@ -69,7 +83,7 @@ if (googleConfigured) {
 // ── Google OAuth ──────────────────────────────────────────────────────────────
 
 const googleNotConfigured = (_req: Request, res: Response) => {
-  res.status(503).json({ error: 'Google OAuth no está configurado en el servidor' });
+  res.status(503).json({ error: 'Google OAuth is not configured on the server' });
 };
 
 router.get(
@@ -101,17 +115,17 @@ router.post('/register', async (req: Request, res: Response) => {
   };
 
   if (!email || !password) {
-    res.status(400).json({ error: 'Email y contraseña son requeridos' });
+    res.status(400).json({ error: 'Email and password are required' });
     return;
   }
   if (password.length < 6) {
-    res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
+    res.status(400).json({ error: 'Password must be at least 6 characters' });
     return;
   }
 
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
-    res.status(409).json({ error: 'Ya existe una cuenta con ese correo' });
+    res.status(409).json({ error: 'An account with that email already exists' });
     return;
   }
 
@@ -131,19 +145,19 @@ router.post('/login', async (req: Request, res: Response) => {
   const { email, password } = req.body as { email?: string; password?: string };
 
   if (!email || !password) {
-    res.status(400).json({ error: 'Email y contraseña son requeridos' });
+    res.status(400).json({ error: 'Email and password are required' });
     return;
   }
 
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user || !user.passwordHash) {
-    res.status(401).json({ error: 'Credenciales incorrectas' });
+    res.status(401).json({ error: 'Incorrect credentials' });
     return;
   }
 
   const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) {
-    res.status(401).json({ error: 'Credenciales incorrectas' });
+    res.status(401).json({ error: 'Incorrect credentials' });
     return;
   }
 
