@@ -710,6 +710,7 @@ window.runVegaAutofill = function(profile) {
       (normLabel.includes('require') || normLabel.includes('need') || normLabel.includes('requiero'));
       
     if (isSponsorshipCheckbox) {
+      matchedElements.add(checkbox); // handled here — keep it out of checkbox learning
       const targetState = requiresSponsorship;
       if (checkbox.checked !== targetState) {
         checkbox.checked = targetState;
@@ -1036,6 +1037,230 @@ window.runVegaAutofill = function(profile) {
     }
   };
 
+  // ── Checkbox learning ───────────────────────────────────────────────────────
+  // Checkboxes are skipped by the text/select learning above (they're in
+  // SKIP_TYPES). Here we learn them as their own custom fields and reuse the
+  // same backend so answers are remembered across sites:
+  //   • a single consent-style checkbox  → one field whose answer is its label
+  //     when checked (empty when unchecked);
+  //   • a "select all that apply" group (several checkboxes sharing a question)
+  //     → one field whose answer is the set of chosen option labels.
+  // As with every custom field, the answer is synced to the backend and any
+  // edit the user makes on the page is saved back for next time.
+  const VEGA_CB_DELIM = ' | ';
+  const cbClean = (s) => (s || '').replace(/\s+/g, ' ').trim();
+
+  // The label for a single checkbox (its own option text).
+  const getCheckboxLabel = (cb) => {
+    try {
+      if (cb.id) {
+        const lbl = document.querySelector(`label[for="${CSS.escape(cb.id)}"]`);
+        if (lbl && cbClean(lbl.textContent)) return cbClean(lbl.textContent);
+      }
+      const wrap = cb.closest('label');
+      if (wrap) {
+        const clone = wrap.cloneNode(true);
+        clone.querySelectorAll('input, textarea, select, button').forEach(n => n.remove());
+        if (cbClean(clone.textContent)) return cbClean(clone.textContent);
+      }
+      const aria = cbClean(cb.getAttribute('aria-label'));
+      if (aria) return aria;
+      // Lever and similar render the label as text following the input.
+      let sib = cb.nextSibling;
+      let hops = 0;
+      while (sib && hops < 4) {
+        if (cbClean(sib.textContent)) return cbClean(sib.textContent);
+        sib = sib.nextSibling; hops++;
+      }
+      const val = cbClean(cb.value);
+      if (val && normalizeString(val) !== 'on') return val;
+    } catch (e) {}
+    return '';
+  };
+
+  const findCommonAncestor = (els) => {
+    let anc = els[0] ? els[0].parentElement : null;
+    while (anc && !els.every(e => anc.contains(e))) anc = anc.parentElement;
+    return anc;
+  };
+
+  // The shared question for a multi-checkbox group — a legend/label/heading that
+  // wraps the group but isn't one of the individual option labels.
+  const getCheckboxGroupQuestion = (boxes, optionLabels) => {
+    const normOpts = new Set(optionLabels.map(normalizeString));
+    const fs = boxes[0].closest('fieldset');
+    if (fs && boxes.every(b => fs.contains(b))) {
+      const lg = fs.querySelector('legend');
+      if (lg && cbClean(lg.textContent)) return cbClean(lg.textContent);
+    }
+    let anc = findCommonAncestor(boxes);
+    let depth = 0;
+    while (anc && depth < 5) {
+      const cands = anc.querySelectorAll('label, legend, [class*="question" i], [class*="label" i], h1, h2, h3, h4, h5, h6, p');
+      for (const c of cands) {
+        if (boxes.some(b => c.contains(b))) continue; // skip the option labels themselves
+        const clone = c.cloneNode(true);
+        clone.querySelectorAll('input, textarea, select, button').forEach(n => n.remove());
+        const txt = cbClean(clone.textContent);
+        if (txt && txt.length >= 2 && txt.length <= 400 && !normOpts.has(normalizeString(txt))) {
+          return txt;
+        }
+      }
+      anc = anc.parentElement; depth++;
+    }
+    return '';
+  };
+
+  const discoverAndLearnCheckboxes = () => {
+    let pageUrl = '';
+    try { pageUrl = location.href; } catch (e) {}
+
+    const allCb = queryAllIncludingShadows('input[type="checkbox"]').filter(cb => {
+      if (matchedElements.has(cb)) return false;
+      if (cb.disabled) return false;
+      try { const r = cb.getBoundingClientRect(); if (r.width === 0 && r.height === 0) return false; } catch (e) {}
+      return true;
+    });
+    if (allCb.length === 0) return;
+
+    // Group checkboxes: those sharing a `name` (Lever uses cards[uuid][fieldN])
+    // are one "select all that apply" question; a legend-bearing fieldset also
+    // forms a group; everything else is a standalone consent-style checkbox.
+    const groupMap = new Map(); // groupId -> [checkboxes]
+    let soloCounter = 0;
+    allCb.forEach(cb => {
+      const name = (cb.getAttribute('name') || '').replace(/\[\]$/, '').trim();
+      let groupId;
+      if (name) {
+        groupId = 'name:' + name;
+      } else {
+        const fs = cb.closest('fieldset');
+        if (fs && fs.querySelector('legend')) {
+          if (!fs.__vegaGid) fs.__vegaGid = 'fs' + (++soloCounter);
+          groupId = fs.__vegaGid;
+        } else {
+          groupId = 'solo:' + (++soloCounter);
+        }
+      }
+      if (!groupMap.has(groupId)) groupMap.set(groupId, []);
+      groupMap.get(groupId).push(cb);
+    });
+
+    const groups = [];          // { fieldKey, label, options, boxes:[{el,optLabel}], ... }
+    const groupByKey = new Map();
+    groupMap.forEach(boxes => {
+      const labeled = boxes
+        .map(el => ({ el, optLabel: getCheckboxLabel(el) }))
+        .filter(b => b.optLabel);
+      if (labeled.length === 0) return;
+
+      const opts = labeled.map(b => b.optLabel);
+      const question = labeled.length > 1
+        ? (getCheckboxGroupQuestion(labeled.map(b => b.el), opts) || opts.join(' / '))
+        : opts[0];
+      if (!question || question.length < 2 || question.length > 400) return;
+
+      const fieldKey = normalizeString(question).slice(0, 300);
+      if (!fieldKey) return;
+
+      const grp = { fieldKey, label: question, options: opts, boxes: labeled, __lastSaved: null, __filling: false };
+      labeled.forEach(b => matchedElements.add(b.el));
+      groups.push(grp);
+      if (!groupByKey.has(fieldKey)) groupByKey.set(fieldKey, grp);
+    });
+    if (groups.length === 0) return;
+
+    const currentSelection = (grp) =>
+      grp.boxes.filter(b => b.el.checked).map(b => b.optLabel).join(VEGA_CB_DELIM);
+
+    // Persist the group's current selection. Empty selections are saved too, so
+    // un-checking everything is remembered as a deliberate answer change.
+    const saveGroup = (grp) => {
+      if (grp.__filling) return;
+      const value = currentSelection(grp);
+      if (grp.__lastSaved === value) return;
+      grp.__lastSaved = value;
+      try {
+        chrome.runtime.sendMessage({
+          type: 'vegaSaveFieldValue',
+          field: { fieldKey: grp.fieldKey, label: grp.label, fieldType: 'checkbox', options: grp.options, value, lastSeenUrl: pageUrl }
+        }, (resp) => {
+          if (chrome.runtime.lastError) return;
+          if (resp && resp.ok) {
+            if (value === '') {
+              vegaLog(`✎ Cleared saved answer: "${trunc(grp.label)}"`);
+            } else if (resp.firstAnswer) {
+              vegaLog(`🆕 New checkbox field recorded in your profile/DB: "${trunc(grp.label)}" = "${trunc(value)}"`);
+              vegaNotify(`Saved a new answer to your Vega profile: "${trunc(grp.label)}"`);
+            } else {
+              vegaLog(`✎ Updated saved answer: "${trunc(grp.label)}" = "${trunc(value)}"`);
+            }
+          } else {
+            vegaLog(`⚠ Could not save "${trunc(grp.label)}": ${resp && resp.error ? resp.error : 'no response'}`);
+          }
+        });
+      } catch (e) { /* extension context may be gone */ }
+    };
+
+    // Remember edits to any checkbox in the group.
+    groups.forEach(grp => {
+      grp.__lastSaved = currentSelection(grp);
+      grp.boxes.forEach(({ el }) => {
+        if (el.__vegaCbListener) return;
+        el.__vegaCbListener = true;
+        el.addEventListener('change', () => saveGroup(grp));
+      });
+    });
+
+    const discovered = groups.map(g => ({
+      fieldKey: g.fieldKey, label: g.label, fieldType: 'checkbox', options: g.options, lastSeenUrl: pageUrl
+    }));
+    vegaLog(`🔍 Scanned page: ${discovered.length} checkbox question(s) found — checking your saved answers…`);
+
+    try {
+      chrome.runtime.sendMessage({ type: 'vegaDiscoverFields', fields: discovered }, (resp) => {
+        if (!resp || !resp.ok) {
+          vegaLog(`⚠ Checkbox sync failed: ${resp && resp.error ? resp.error : 'no response from background'}`);
+          return;
+        }
+        const savedFields = Array.isArray(resp.fields) ? resp.fields : [];
+        const createdKeys = new Set(resp.createdKeys || []);
+        discovered.forEach(d => {
+          if (createdKeys.has(d.fieldKey)) {
+            vegaLog(`🆕 New checkbox field saved to your profile (needs an answer): "${trunc(d.label)}"`);
+          }
+        });
+
+        savedFields.forEach(saved => {
+          if (saved.value == null || saved.value === '') return;
+          const grp = groupByKey.get(saved.fieldKey);
+          if (!grp) return;
+          const wanted = new Set(String(saved.value).split('|').map(s => normalizeString(s)).filter(Boolean));
+          grp.__filling = true; // suppress the change listener while we apply
+          let changed = false;
+          grp.boxes.forEach(({ el, optLabel }) => {
+            const want = wanted.has(normalizeString(optLabel));
+            if (el.checked !== want) {
+              el.checked = want;
+              el.dispatchEvent(new Event('input', { bubbles: true }));
+              el.dispatchEvent(new Event('change', { bubbles: true }));
+              changed = true;
+            }
+          });
+          grp.__lastSaved = currentSelection(grp);
+          grp.__filling = false;
+          if (changed) {
+            filledCount++;
+            highlight((grp.boxes[0].el.closest('label, fieldset, div')) || grp.boxes[0].el);
+            vegaLog(`✓ Filled remembered checkbox "${trunc(saved.label)}" → "${trunc(saved.value)}"`);
+          }
+        });
+      });
+    } catch (e) {
+      console.warn('Vega: could not send discovered checkboxes:', e);
+    }
+  };
+
   // 5. Resume upload — runs first; text fields are filled after Angular settles
   if (chrome && chrome.storage && chrome.storage.local) {
     console.log("Vega: Retrieving resume from local storage...");
@@ -1044,6 +1269,7 @@ window.runVegaAutofill = function(profile) {
         console.log("Vega: No resume found in storage. Filling text fields only.");
         fillTextAndFormFields();
         discoverAndLearnCustomFields();
+        discoverAndLearnCheckboxes();
         showToast();
         return;
       }
@@ -1139,6 +1365,7 @@ window.runVegaAutofill = function(profile) {
       setTimeout(() => {
         fillTextAndFormFields();
         discoverAndLearnCustomFields();
+        discoverAndLearnCheckboxes();
         showToast();
       }, 1000);
     });
@@ -1146,6 +1373,7 @@ window.runVegaAutofill = function(profile) {
     // No resume storage — fill text fields immediately
     fillTextAndFormFields();
     discoverAndLearnCustomFields();
+    discoverAndLearnCheckboxes();
     showToast();
   }
 

@@ -479,7 +479,42 @@ export default function CandidateProfile() {
                         Delete
                       </button>
                     </div>
-                    {field.options && field.options.length > 0 ? (
+                    {field.fieldType === 'checkbox' ? (
+                      <>
+                        {(() => {
+                          // The answer is a " | "-joined set of chosen option
+                          // labels (matches the extension's VEGA_CB_DELIM).
+                          const selected = new Set(
+                            (fieldDrafts[field.id] ?? '').split(' | ').map(s => s.trim()).filter(Boolean)
+                          );
+                          // Fall back to the field's own label when no distinct
+                          // options were captured (a single consent checkbox).
+                          const opts = field.options && field.options.length > 0 ? field.options : [field.label];
+                          const toggle = (opt: string) => {
+                            const next = new Set(selected);
+                            if (next.has(opt)) next.delete(opt); else next.add(opt);
+                            const ordered = opts.filter(o => next.has(o));
+                            setFieldDrafts({ ...fieldDrafts, [field.id]: ordered.join(' | ') });
+                          };
+                          return (
+                            <div className="mt-1 space-y-1">
+                              {opts.map(opt => (
+                                <label key={opt} className="flex items-start gap-2 text-sm text-gray-700 dark:text-zinc-300">
+                                  <input
+                                    type="checkbox"
+                                    checked={selected.has(opt)}
+                                    onChange={() => toggle(opt)}
+                                    className="mt-0.5 h-4 w-4 rounded border-gray-300 dark:border-white/15 text-indigo-600 focus:ring-indigo-500"
+                                  />
+                                  <span>{opt}</span>
+                                </label>
+                              ))}
+                            </div>
+                          );
+                        })()}
+                        <p className="mt-1 text-xs text-gray-400 dark:text-zinc-500">Checkbox field · {field.options && field.options.length > 0 ? `${field.options.length} option${field.options.length === 1 ? '' : 's'} captured` : 'single checkbox'} from the form</p>
+                      </>
+                    ) : field.options && field.options.length > 0 ? (
                       <>
                         <select
                           value={fieldDrafts[field.id] ?? ''}
