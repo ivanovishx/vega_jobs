@@ -10,6 +10,158 @@ async function authFetch(url, options = {}) {
   return fetch(url, { ...options, headers });
 }
 
+// ── Record-as-applied helpers ────────────────────────────────────────────────
+// Clicking Autofill means the user is applying, so we record the position as
+// "Applied". The backend normalizes the URL, dedupes, and upgrades any existing
+// "To Apply" entry — so the next evaluate fires the "already applied" alert.
+
+function titleCase(s) {
+  return (s || '').replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim()
+    .replace(/\b\w/g, c => c.toUpperCase());
+}
+
+// Best-effort company name from common ATS URLs (Lever, Greenhouse, Ashby,
+// Workday, iCIMS, *.applytojob.com) when scraping can't determine it.
+function inferCompanyFromUrl(urlStr) {
+  try {
+    const u = new URL(urlStr);
+    const host = u.hostname.replace(/^www\./, '');
+    const path = u.pathname.split('/').filter(Boolean);
+    if (/(lever\.co|greenhouse\.io|ashbyhq\.com|myworkdayjobs\.com|icims\.com|jobvite\.com|smartrecruiters\.com)$/i.test(host)) {
+      if (path[0] && !/^apply$/i.test(path[0])) return titleCase(path[0]);
+    }
+    const sub = host.split('.')[0];
+    if (sub && !['jobs', 'boards', 'careers', 'apply', 'job', 'www', 'app'].includes(sub.toLowerCase())) {
+      return titleCase(sub);
+    }
+    if (path[0]) return titleCase(path[0]);
+    return titleCase(host.split('.')[0]);
+  } catch (e) { return ''; }
+}
+
+// Parse "Job Title at Company" / "Job Title - Company" from a page <title>.
+function deriveFromTitle(title) {
+  let t = (title || '').trim()
+    .replace(/^Job Application for\s+/i, '')
+    .replace(/^Apply(?:\s*[-–|:])?\s*/i, '');
+  let jobTitle = '', companyName = '';
+  if (/\sat\s/i.test(t)) {
+    const parts = t.split(/\sat\s/i);
+    jobTitle = parts[0].trim();
+    companyName = (parts[1] || '').split(/[|\-–]/)[0].trim();
+  } else if (/[|\-–]/.test(t)) {
+    const parts = t.split(/[|\-–]/);
+    jobTitle = parts[0].trim();
+    companyName = (parts[1] || '').trim();
+  } else {
+    jobTitle = t;
+  }
+  return { jobTitle, companyName };
+}
+
+// Scrape (server) → fall back to live tab title + URL → save as Applied.
+// Returns { saved | updated | alreadyApplied | error, jobTitle, companyName }.
+async function saveCurrentTabAsApplied(tab) {
+  if (!tab || !tab.url) return { error: 'No active tab URL' };
+
+  let companyName = '', jobTitle = '', location = '', salaryRange = '';
+
+  // 1) Primary: server-side scrape.
+  try {
+    const formData = new FormData();
+    formData.append('url', tab.url);
+    const parseRes = await authFetch(`${BACKEND_URL}/api/applications/autofill`, { method: 'POST', body: formData });
+    if (parseRes.ok) {
+      const parsed = await parseRes.json();
+      companyName = parsed.companyName || '';
+      jobTitle = parsed.jobTitle || '';
+      location = parsed.location || '';
+      salaryRange = parsed.salaryRange || '';
+    }
+  } catch (e) {
+    logDebug('Apply-save: server scrape failed — ' + e.message);
+  }
+
+  // 2) Fallbacks for ATS/SPA pages the server can't render. The URL is the most
+  //    reliable company signal for known ATS hosts; the page title gives the role.
+  const fromTitle = deriveFromTitle(tab.title);
+  const fromUrl = inferCompanyFromUrl(tab.url);
+  if (!jobTitle || /unknown/i.test(jobTitle)) jobTitle = fromTitle.jobTitle || jobTitle;
+  if (!companyName || /unknown/i.test(companyName)) companyName = fromUrl || fromTitle.companyName || companyName;
+  // "Company - Role" titles can land the company in the jobTitle slot; if the
+  // role we derived is just the company name, use the other half of the title.
+  const norm = (s) => (s || '').trim().toLowerCase();
+  if (companyName && norm(jobTitle) === norm(companyName) && fromTitle.companyName && norm(fromTitle.companyName) !== norm(companyName)) {
+    jobTitle = fromTitle.companyName;
+  }
+  if (!jobTitle) jobTitle = 'Application';
+  if (!companyName) return { error: 'Could not determine the company for this page.' };
+
+  // 3) Save as Applied.
+  const saveRes = await authFetch(`${BACKEND_URL}/api/applications`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      companyName, jobTitle, jobUrl: tab.url, location, salaryRange,
+      status: 'Applied', dateApplied: new Date().toISOString()
+    })
+  });
+  const data = await saveRes.json().catch(() => ({}));
+  if (!saveRes.ok) {
+    // The backend rejects re-saving a URL already in the pipeline — for our
+    // purposes that means it's already applied, which is exactly what we want.
+    if ((data.error || '').toLowerCase().includes('already')) {
+      return { alreadyApplied: true, jobTitle, companyName };
+    }
+    throw new Error(data.error || `Save error: ${saveRes.status}`);
+  }
+  return { saved: !data.updated, updated: !!data.updated, jobTitle, companyName };
+}
+
+// Inject an on-page toast (top frame) confirming the record-as-applied outcome,
+// so the user gets visible feedback without opening the popup.
+async function showApplyToastInTab(tabId, result) {
+  if (!tabId || !result) return;
+  let kind, message;
+  if (result.error) {
+    kind = 'warn'; message = `⚠️ Couldn't record as applied: ${result.error}`;
+  } else if (result.alreadyApplied) {
+    kind = 'applied'; message = `🚨 Already applied: ${result.jobTitle} at ${result.companyName}`;
+  } else {
+    kind = 'success'; message = `✅ ${result.updated ? 'Marked applied' : 'Recorded as applied'}: ${result.jobTitle} at ${result.companyName}`;
+  }
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      func: (msg, kind) => {
+        const colors = {
+          success: ['#ecfdf5', '#065f46', '#a7f3d0'],
+          applied: ['#fef2f2', '#991b1b', '#fecaca'],
+          warn:    ['#fffbeb', '#92400e', '#fcd34d'],
+        };
+        const [bg, color, border] = colors[kind] || colors.success;
+        const id = 'vega-apply-toast';
+        const prior = document.getElementById(id);
+        if (prior) prior.remove();
+        const toast = document.createElement('div');
+        toast.id = id;
+        toast.textContent = msg;
+        toast.style.cssText = `
+          position: fixed; bottom: 20px; right: 20px; z-index: 2147483647;
+          background-color: ${bg}; color: ${color}; border: 1px solid ${border};
+          padding: 12px 18px; border-radius: 8px; max-width: 360px;
+          box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+          font-family: system-ui, -apple-system, sans-serif; font-size: 14px;
+          font-weight: 500; pointer-events: none; transition: opacity 0.5s ease-in-out;
+        `;
+        document.body.appendChild(toast);
+        setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 500); }, 5000);
+      },
+      args: [message, kind],
+    });
+  } catch (e) { /* tab may not allow injection (chrome:// pages, etc.) */ }
+}
+
 function logDebug(msg) {
   console.log(msg);
   const logsEl = document.getElementById('debugLogs');
@@ -314,12 +466,39 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // ── Autofill ───────────────────────────────────────────────────────────────
 
+  function showApplyResult(r) {
+    if (!r) return;
+    evalResult.style.display = 'block';
+    const styleFor = (bg, color, border) =>
+      `display:block;background:${bg};color:${color};border:1px solid ${border};padding:8px;border-radius:6px;font-size:13px;margin-top:8px;`;
+    if (r.error) {
+      evalResult.style.cssText = styleFor('#fffbeb', '#92400e', '#fcd34d');
+      evalResult.textContent = `⚠️ Autofilled, but couldn't record as applied: ${r.error}`;
+      logDebug('Apply-save skipped: ' + r.error);
+    } else if (r.alreadyApplied) {
+      evalResult.style.cssText = styleFor('#fef2f2', '#991b1b', '#fecaca');
+      evalResult.textContent = `🚨 Already applied: ${r.jobTitle} at ${r.companyName}`;
+      logDebug(`Already applied: ${r.jobTitle} at ${r.companyName}`);
+    } else {
+      evalResult.style.cssText = styleFor('#ecfdf5', '#065f46', '#a7f3d0');
+      evalResult.textContent = `✅ ${r.updated ? 'Marked applied' : 'Saved as applied'}: ${r.jobTitle} at ${r.companyName}`;
+      logDebug(`Recorded as applied: ${r.jobTitle} at ${r.companyName}`);
+    }
+  }
+
   btn.addEventListener('click', async () => {
     if (!candidateProfile) return;
     btn.textContent = 'Filling...';
     btn.disabled = true;
+    errorEl.textContent = '';
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
+      // Record this position as Applied in parallel with filling the form so the
+      // "already applied" alert fires on future visits. Best-effort — a save
+      // failure must never block the autofill itself.
+      const savePromise = saveCurrentTabAsApplied(tab).catch(err => ({ error: err.message }));
+
       await chrome.scripting.executeScript({ target: { tabId: tab.id, allFrames: true }, files: ['content/autofill.js'] });
       await chrome.scripting.executeScript({
         target: { tabId: tab.id, allFrames: true },
@@ -327,6 +506,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         args: [candidateProfile]
       });
       btn.textContent = 'Done!';
+
+      const saveResult = await savePromise;
+      showApplyResult(saveResult);
+      showApplyToastInTab(tab.id, saveResult);
     } catch (err) {
       logDebug(`Autofill error: ${err.message}`);
       errorEl.textContent = 'Error: ' + err.message;
@@ -372,50 +555,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── Save as Applied ────────────────────────────────────────────────────────
 
   saveJobBtn.addEventListener('click', async () => {
-    saveJobBtn.textContent = 'Scraping...';
+    saveJobBtn.textContent = 'Saving...';
     saveJobBtn.disabled = true;
     errorEl.textContent = '';
     evalResult.style.display = 'none';
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (!tab?.url) throw new Error('Could not get current tab URL');
-
-      const formData = new FormData();
-      formData.append('url', tab.url);
-      const parseRes = await authFetch(`${BACKEND_URL}/api/applications/autofill`, {
-        method: 'POST',
-        body: formData
-      });
-      if (!parseRes.ok) throw new Error(`Parse error: ${parseRes.status}`);
-      const parsedData = await parseRes.json();
-
-      if (!parsedData.companyName || !parsedData.jobTitle) {
-        throw new Error('Could not extract company or job title from page.');
-      }
-
-      logDebug(`Extracted: ${parsedData.jobTitle} at ${parsedData.companyName}`);
-      saveJobBtn.textContent = 'Saving...';
-
-      const saveRes = await authFetch(`${BACKEND_URL}/api/applications`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          companyName: parsedData.companyName,
-          jobTitle: parsedData.jobTitle,
-          jobUrl: tab.url,
-          status: 'Applied',
-          dateApplied: new Date().toISOString()
-        })
-      });
-
-      if (!saveRes.ok) {
-        const errorData = await saveRes.json();
-        throw new Error(errorData.error || `Save error: ${saveRes.status}`);
-      }
-
-      evalResult.style.cssText = 'display:block;background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0;padding:8px;border-radius:6px;font-size:13px;margin-top:8px;';
-      evalResult.textContent = `✅ Saved ${parsedData.jobTitle} at ${parsedData.companyName}!`;
-      logDebug('Application saved successfully.');
+      const saveResult = await saveCurrentTabAsApplied(tab);
+      showApplyResult(saveResult);
+      showApplyToastInTab(tab.id, saveResult);
     } catch (err) {
       logDebug(`Save Job error: ${err.message}`);
       errorEl.textContent = 'Save Error: ' + err.message;

@@ -66,6 +66,31 @@ window.runVegaAutofill = function(profile) {
       .trim();
   };
 
+  // Classify a yes/no/decline EEO answer (veteran, disability) by intent rather
+  // than exact wording, so a saved "I am not a protected veteran" still matches
+  // a form option phrased "I am not a veteran". Returns 'yes' | 'no' | 'decline'
+  // | null. `subjectKeywords` are the affirmative nouns for the question
+  // (e.g. ['veteran'], ['disability']).
+  const classifyAffirmation = (s, subjectKeywords) => {
+    const n = normalizeString(s);
+    if (!n) return null;
+    const tokens = n.split(' ');
+    const has = (w) => tokens.includes(w);
+    if (n.includes('decline') || n.includes('prefer not') || n.includes('rather not') ||
+        n.includes('not to answer') || n.includes('wish to answer') || n.includes('want to answer') ||
+        n.includes('wish to disclose') || n.includes('want to disclose') ||
+        n.includes('wish to provide') || n.includes('want to provide') ||
+        n.includes('do not wish') || n.includes('dont wish') || n.includes('not wish') ||
+        n.includes('no answer') || n.includes('choose not')) {
+      return 'decline';
+    }
+    if (has('yes')) return 'yes';
+    const negated = has('not') || has('no') || has('dont') || has('don') || has('non') || has('without') || has('havent');
+    const mentionsSubject = (subjectKeywords || []).some(k => n.includes(k));
+    if (mentionsSubject || negated) return negated ? 'no' : 'yes';
+    return null;
+  };
+
   // Helper to query all matching elements, including those inside Shadow DOMs
   const queryAllIncludingShadows = (selector, root = document) => {
     const elements = Array.from(root.querySelectorAll(selector));
@@ -523,6 +548,11 @@ window.runVegaAutofill = function(profile) {
   candidates.forEach(input => {
     if (input.tagName === 'INPUT' && SKIP_TYPES.has((input.type || '').toLowerCase())) return;
     if (input.disabled || input.readOnly) return;
+    // Textareas on these ATS forms are free-text questions, never identity
+    // fields. Skip standard mapping so we don't bleed e.g. the first name into a
+    // "What is your preferred first and last name?" box — they're captured by
+    // the custom-field learning pass instead.
+    if (input.tagName === 'TEXTAREA') return;
 
     let bestKey = null;
     let bestScore = 30; // Threshold to prevent bad mappings
@@ -544,8 +574,13 @@ window.runVegaAutofill = function(profile) {
         filledCount++;
         highlight(input);
         vegaLog(`✓ Filled field "${bestKey}" → "${trunc(valToSet)}"`);
+      } else if (!valToSet) {
+        // The field was recognized but there's nothing to put in it — tell the
+        // user so they know to fill it in their Vega profile (this is the usual
+        // reason phone/LinkedIn/etc. "don't autofill").
+        vegaLog(`• Found "${bestKey}" on the form, but your Vega profile has no value for it — add it in your profile so it autofills next time.`);
       } else {
-        console.log(`Vega: Skipped filling "${bestKey}" (empty value or already filled: "${input.value}")`);
+        console.log(`Vega: Skipped "${bestKey}" (already filled: "${input.value}")`);
       }
     } else {
       console.log(`Vega: No matched field key (highest score under 30) for input:`, input, "Texts gathered:", getFieldText(input));
@@ -782,6 +817,29 @@ window.runVegaAutofill = function(profile) {
       }
     };
 
+    // Polarity-aware selector for yes/no/decline EEO questions (veteran,
+    // disability), whose wording differs a lot between ATS providers. Returns
+    // true if it set an option, so the caller can fall back to substring match.
+    const matchByAffirmation = (targetValue, subjectKeywords) => {
+      if (!targetValue) return false;
+      const want = classifyAffirmation(targetValue, subjectKeywords);
+      if (!want) return false;
+      for (const option of select.options) {
+        if (!option.value) continue; // skip the "Select…" placeholder
+        if (classifyAffirmation(option.text || option.value, subjectKeywords) === want) {
+          if (select.value !== option.value) {
+            select.value = option.value;
+            select.dispatchEvent(new Event('change', { bubbles: true }));
+            filledCount++;
+            highlight(select);
+            vegaLog(`✓ Selected "${trunc(option.text || option.value)}" from a dropdown`);
+          }
+          return true;
+        }
+      }
+      return false;
+    };
+
     if (normLabel.includes('gender') || normLabel.includes('sex ') || normLabel.endsWith(' sex') || normLabel.includes('genero')) {
       matchedElements.add(select);
       matchAndSetOption(profile.gender);
@@ -790,10 +848,12 @@ window.runVegaAutofill = function(profile) {
       matchAndSetOption(profile.race);
     } else if (normLabel.includes('veteran') || normLabel.includes('veterano')) {
       matchedElements.add(select);
-      matchAndSetOption(profile.veteranStatus);
+      if (!matchByAffirmation(profile.veteranStatus, ['veteran', 'protected']))
+        matchAndSetOption(profile.veteranStatus);
     } else if (normLabel.includes('disability') || normLabel.includes('handicap') || normLabel.includes('discapacidad')) {
       matchedElements.add(select);
-      matchAndSetOption(profile.disabilityStatus);
+      if (!matchByAffirmation(profile.disabilityStatus, ['disability', 'disabled', 'impairment', 'condition', 'discapacidad']))
+        matchAndSetOption(profile.disabilityStatus);
     }
   });
   // Best-effort fill for React typeahead/combobox fields (Location, phone Country).

@@ -30,6 +30,140 @@ async function authFetch(url, options = {}) {
   return fetch(url, { ...options, headers });
 }
 
+// ── Record-as-applied (shared by popup button + keyboard shortcut) ───────────
+function titleCase(s) {
+  return (s || '').replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim()
+    .replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function inferCompanyFromUrl(urlStr) {
+  try {
+    const u = new URL(urlStr);
+    const host = u.hostname.replace(/^www\./, '');
+    const path = u.pathname.split('/').filter(Boolean);
+    if (/(lever\.co|greenhouse\.io|ashbyhq\.com|myworkdayjobs\.com|icims\.com|jobvite\.com|smartrecruiters\.com)$/i.test(host)) {
+      if (path[0] && !/^apply$/i.test(path[0])) return titleCase(path[0]);
+    }
+    const sub = host.split('.')[0];
+    if (sub && !['jobs', 'boards', 'careers', 'apply', 'job', 'www', 'app'].includes(sub.toLowerCase())) {
+      return titleCase(sub);
+    }
+    if (path[0]) return titleCase(path[0]);
+    return titleCase(host.split('.')[0]);
+  } catch (e) { return ''; }
+}
+
+function deriveFromTitle(title) {
+  let t = (title || '').trim()
+    .replace(/^Job Application for\s+/i, '')
+    .replace(/^Apply(?:\s*[-–|:])?\s*/i, '');
+  let jobTitle = '', companyName = '';
+  if (/\sat\s/i.test(t)) {
+    const parts = t.split(/\sat\s/i);
+    jobTitle = parts[0].trim();
+    companyName = (parts[1] || '').split(/[|\-–]/)[0].trim();
+  } else if (/[|\-–]/.test(t)) {
+    const parts = t.split(/[|\-–]/);
+    jobTitle = parts[0].trim();
+    companyName = (parts[1] || '').trim();
+  } else {
+    jobTitle = t;
+  }
+  return { jobTitle, companyName };
+}
+
+// Scrape (server) → fall back to live tab title + URL → save as Applied.
+async function saveTabAsApplied(tab) {
+  if (!tab || !tab.url) return { error: 'No active tab URL' };
+
+  let companyName = '', jobTitle = '', location = '', salaryRange = '';
+  try {
+    const formData = new FormData();
+    formData.append('url', tab.url);
+    const parseRes = await authFetch(`${BACKEND_URL}/api/applications/autofill`, { method: 'POST', body: formData });
+    if (parseRes.ok) {
+      const parsed = await parseRes.json();
+      companyName = parsed.companyName || '';
+      jobTitle = parsed.jobTitle || '';
+      location = parsed.location || '';
+      salaryRange = parsed.salaryRange || '';
+    }
+  } catch (e) {
+    console.warn('saveTabAsApplied: server scrape failed —', e.message);
+  }
+
+  const fromTitle = deriveFromTitle(tab.title);
+  const fromUrl = inferCompanyFromUrl(tab.url);
+  if (!jobTitle || /unknown/i.test(jobTitle)) jobTitle = fromTitle.jobTitle || jobTitle;
+  if (!companyName || /unknown/i.test(companyName)) companyName = fromUrl || fromTitle.companyName || companyName;
+  const norm = (s) => (s || '').trim().toLowerCase();
+  if (companyName && norm(jobTitle) === norm(companyName) && fromTitle.companyName && norm(fromTitle.companyName) !== norm(companyName)) {
+    jobTitle = fromTitle.companyName;
+  }
+  if (!jobTitle) jobTitle = 'Application';
+  if (!companyName) return { error: 'Could not determine the company for this page.' };
+
+  const saveRes = await authFetch(`${BACKEND_URL}/api/applications`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      companyName, jobTitle, jobUrl: tab.url, location, salaryRange,
+      status: 'Applied', dateApplied: new Date().toISOString()
+    })
+  });
+  const data = await saveRes.json().catch(() => ({}));
+  if (!saveRes.ok) {
+    if ((data.error || '').toLowerCase().includes('already')) {
+      return { alreadyApplied: true, jobTitle, companyName };
+    }
+    return { error: data.error || `Save error: ${saveRes.status}` };
+  }
+  return { saved: !data.updated, updated: !!data.updated, jobTitle, companyName };
+}
+
+// Inject an on-page toast (top frame) confirming the record-as-applied outcome.
+async function showApplyToastInTab(tabId, result) {
+  if (!tabId || !result) return;
+  let kind, message;
+  if (result.error) {
+    kind = 'warn'; message = `⚠️ Couldn't record as applied: ${result.error}`;
+  } else if (result.alreadyApplied) {
+    kind = 'applied'; message = `🚨 Already applied: ${result.jobTitle} at ${result.companyName}`;
+  } else {
+    kind = 'success'; message = `✅ ${result.updated ? 'Marked applied' : 'Recorded as applied'}: ${result.jobTitle} at ${result.companyName}`;
+  }
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      func: (msg, kind) => {
+        const colors = {
+          success: ['#ecfdf5', '#065f46', '#a7f3d0'],
+          applied: ['#fef2f2', '#991b1b', '#fecaca'],
+          warn:    ['#fffbeb', '#92400e', '#fcd34d'],
+        };
+        const [bg, color, border] = colors[kind] || colors.success;
+        const id = 'vega-apply-toast';
+        const prior = document.getElementById(id);
+        if (prior) prior.remove();
+        const toast = document.createElement('div');
+        toast.id = id;
+        toast.textContent = msg;
+        toast.style.cssText = `
+          position: fixed; bottom: 20px; right: 20px; z-index: 2147483647;
+          background-color: ${bg}; color: ${color}; border: 1px solid ${border};
+          padding: 12px 18px; border-radius: 8px; max-width: 360px;
+          box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+          font-family: system-ui, -apple-system, sans-serif; font-size: 14px;
+          font-weight: 500; pointer-events: none; transition: opacity 0.5s ease-in-out;
+        `;
+        document.body.appendChild(toast);
+        setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 500); }, 5000);
+      },
+      args: [message, kind],
+    });
+  } catch (e) { /* tab may not allow injection (chrome:// pages, etc.) */ }
+}
+
 // ── Custom field learning ────────────────────────────────────────────────────
 // The content script can't talk to the authenticated backend directly, so it
 // relays discovered fields and user edits through these messages.
@@ -105,6 +239,10 @@ chrome.commands.onCommand.addListener(async (command) => {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (!tab) return;
 
+      // Filling a form means you're applying — record it so the "already
+      // applied" alert fires next time. Best-effort; never blocks autofill.
+      const savePromise = saveTabAsApplied(tab).catch(err => ({ error: err.message }));
+
       await chrome.scripting.executeScript({
         target: { tabId: tab.id, allFrames: true },
         files: ['content/autofill.js']
@@ -115,6 +253,14 @@ chrome.commands.onCommand.addListener(async (command) => {
         func: (p) => { if (window.runVegaAutofill) window.runVegaAutofill(p); },
         args: [profile]
       });
+
+      const saveResult = await savePromise;
+      showApplyToastInTab(tab.id, saveResult);
+      if (saveResult && !saveResult.error) {
+        console.log('Autofill shortcut: recorded as applied —', saveResult);
+      } else if (saveResult && saveResult.error) {
+        console.warn('Autofill shortcut: could not record as applied —', saveResult.error);
+      }
     } catch (err) {
       console.error("Autofill shortcut error:", err);
     }
