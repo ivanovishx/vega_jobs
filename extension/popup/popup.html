@@ -141,6 +141,9 @@
     </div>
 
     <button id="autofillBtn" disabled>Autofill Form</button>
+    <div id="autofillHint" style="font-size:11px;color:#9ca3af;margin-top:6px;text-align:center;">
+      Tip: autofill any job form with <span id="autofillShortcutInline"><kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>S</kbd></span>
+    </div>
 
     <div style="display:flex;gap:8px;margin-top:8px;">
       <button id="evaluateBtn" style="flex:1;background-color:#10b981;">Evaluate Job</button>
@@ -166,19 +169,25 @@
     </div>
 
     <div class="shortcuts">
-      <h3>Useful Shortcuts</h3>
+      <h3>Keyboard Shortcuts <span style="font-weight:400;color:#9ca3af;">(Mac)</span></h3>
+      <p style="font-size:11px;color:#9ca3af;margin:0 0 10px 0;">Work from any job page — no need to open this popup.</p>
+      <div class="shortcut-row">
+        <span>Autofill Form</span>
+        <span id="autofillShortcutRow"><kbd>⌘</kbd> + <kbd>⇧</kbd> + <kbd>S</kbd></span>
+      </div>
       <div class="shortcut-row">
         <span>Open Extension</span>
-        <span><kbd>⌘</kbd> + <kbd>⇧</kbd> + <kbd>K</kbd></span>
+        <span id="openShortcutRow"><kbd>⌘</kbd> + <kbd>⇧</kbd> + <kbd>K</kbd></span>
       </div>
       <div class="shortcut-row">
         <span>Evaluate Job</span>
-        <span><kbd>⌘</kbd> + <kbd>⇧</kbd> + <kbd>O</kbd></span>
+        <span id="evalShortcutRow"><kbd>⌘</kbd> + <kbd>⇧</kbd> + <kbd>O</kbd></span>
       </div>
       <div class="shortcut-row">
         <span>Close Extension</span>
         <span><kbd>Esc</kbd></span>
       </div>
+      <p style="font-size:11px;color:#9ca3af;margin:8px 0 0 0;">Rebind any of these at <span style="color:#6b7280;">chrome://extensions/shortcuts</span></p>
     </div>
 
     <div style="display:flex;gap:8px;margin-top:12px;">

@@ -542,6 +542,53 @@ window.runVegaAutofill = function(profile) {
     });
   };
 
+  // ── Standard-field profile sync ─────────────────────────────────────────────
+  // Standard fields (name, email, phone, location, LinkedIn, …) are filled from
+  // the candidate profile rather than the learned-fields table. To honor "if I
+  // edit any field it must update the DB", we also watch these fields: when the
+  // user types or changes one on the page, the new value is written back to
+  // their Vega profile so it's remembered everywhere. Composite/partial fields
+  // (first/last name, city/state/country) are skipped to avoid clobbering.
+  const buildProfilePatch = (fieldKey, value) => {
+    const v = (value || '').trim();
+    if (!v) return null;
+    switch (fieldKey) {
+      case 'email':     return { user: { email: v } };
+      case 'name':      return { user: { name: v } };
+      case 'phone':     return { phone: v };
+      case 'linkedin':  return { linkedInUrl: v };
+      case 'github':    return { githubUrl: v };
+      case 'portfolio': return { portfolioUrl: v };
+      case 'location':  return { targetLocations: [v] };
+      case 'salary':    { const n = parseInt(v.replace(/[^0-9]/g, ''), 10); return isNaN(n) ? null : { minimumSalary: n }; }
+      case 'experience':{ const n = parseInt(v.replace(/[^0-9]/g, ''), 10); return isNaN(n) ? null : { yearsOfExperience: n }; }
+      default:          return null; // first_name/last_name/city/state/country — partial, skip
+    }
+  };
+
+  const attachStandardSync = (input, fieldKey) => {
+    if (input.__vegaStdListener) return;
+    if (!buildProfilePatch(fieldKey, 'x')) return; // not a syncable field
+    input.__vegaStdListener = true;
+    input.__vegaStdLast = (input.value || '').trim();
+    const handler = () => {
+      const value = (input.value || '').trim();
+      if (!value || value === input.__vegaStdLast) return;
+      const patch = buildProfilePatch(fieldKey, value);
+      if (!patch) return;
+      input.__vegaStdLast = value;
+      try {
+        chrome.runtime.sendMessage({ type: 'vegaSaveProfileField', patch, fieldKey, value }, (resp) => {
+          if (chrome.runtime.lastError) return;
+          if (resp && resp.ok) vegaLog(`✎ Updated your Vega profile: "${fieldKey}" = "${trunc(value)}"`);
+          else vegaLog(`⚠ Could not update profile "${fieldKey}": ${resp && resp.error ? resp.error : 'no response'}`);
+        });
+      } catch (e) { /* extension context may be gone */ }
+    };
+    input.addEventListener('change', handler);
+    input.addEventListener('blur', handler);
+  };
+
   const fillTextAndFormFields = () => {
   // 1. Fill text-shaped inputs and textareas (query including Shadow DOMs)
   const candidates = queryAllIncludingShadows('input, textarea');
@@ -567,9 +614,12 @@ window.runVegaAutofill = function(profile) {
 
     if (bestKey) {
       matchedElements.add(input);
+      // Remember the user's edits to this standard field (synced to profile).
+      attachStandardSync(input, bestKey);
       const valToSet = fieldMapping[bestKey];
       console.log(`Vega: Matched field "${bestKey}" with score ${bestScore} for input:`, input);
       if (valToSet && (!input.value || input.value.trim() === '')) {
+        input.__vegaStdLast = (valToSet || '').trim(); // don't treat our own fill as a user edit
         setNativeValue(input, valToSet);
         filledCount++;
         highlight(input);

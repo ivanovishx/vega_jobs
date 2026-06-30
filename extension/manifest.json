@@ -36,6 +36,13 @@
         "mac": "Command+Shift+O"
       },
       "description": "Evaluate Current Job"
+    },
+    "autofill": {
+      "suggested_key": {
+        "default": "Alt+Shift+S",
+        "mac": "Command+Shift+S"
+      },
+      "description": "Autofill Current Form"
     }
   }
 }

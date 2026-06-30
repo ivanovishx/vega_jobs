@@ -197,6 +197,29 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true; // keep the message channel open for the async response
   }
 
+  if (msg.type === 'vegaSaveProfileField') {
+    (async () => {
+      try {
+        const res = await authFetch(`${BACKEND_URL}/api/profile`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(msg.patch || {})
+        });
+        if (!res.ok) {
+          let body = '';
+          try { body = (await res.text()).slice(0, 200); } catch (e) {}
+          throw new Error(`HTTP ${res.status}${body ? ' — ' + body : ''}`);
+        }
+        await res.json().catch(() => ({}));
+        sendResponse({ ok: true });
+      } catch (err) {
+        console.error('vegaSaveProfileField error:', err);
+        sendResponse({ ok: false, error: err.message });
+      }
+    })();
+    return true; // keep the message channel open for the async response
+  }
+
   if (msg.type === 'vegaSaveFieldValue') {
     (async () => {
       try {

@@ -374,6 +374,32 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  // ── Autofill shortcut hint ────────────────────────────────────────────────
+  // Show the *actual* key binding Chrome assigned (it can differ per-OS, or be
+  // empty if it conflicted with another extension), so the hint never lies.
+  function renderShortcut(el, shortcut) {
+    if (!el) return;
+    if (!shortcut) {
+      el.innerHTML = '<span style="color:#9ca3af;">unset · set it in chrome://extensions/shortcuts</span>';
+      return;
+    }
+    const parts = shortcut.includes('+') ? shortcut.split('+') : Array.from(shortcut);
+    el.innerHTML = parts.map(p => `<kbd>${p.trim()}</kbd>`).join(' + ');
+  }
+  if (chrome.commands && chrome.commands.getAll) {
+    chrome.commands.getAll((cmds) => {
+      const shortcutOf = (name) => {
+        const c = (cmds || []).find(x => x.name === name);
+        return c ? c.shortcut : '';
+      };
+      const af = shortcutOf('autofill');
+      renderShortcut(document.getElementById('autofillShortcutInline'), af);
+      renderShortcut(document.getElementById('autofillShortcutRow'), af);
+      renderShortcut(document.getElementById('openShortcutRow'), shortcutOf('_execute_action'));
+      renderShortcut(document.getElementById('evalShortcutRow'), shortcutOf('evaluate_job'));
+    });
+  }
+
   // ── Init: check stored token or read from backend cookie ──────────────────
 
   chrome.storage.local.get(['authToken', 'resumeFileName', 'autoEvaluate'], async (result) => {
