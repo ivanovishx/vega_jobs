@@ -12,6 +12,9 @@ router.get('/matches', async (req, res) => {
     if (!results) {
       return res.status(404).json({ error: 'Profile not found. Complete your profile to see matches.' });
     }
+    if ('empty' in results) {
+      return res.status(400).json({ error: 'Add your skills or upload a resume in your profile to see job matches.' });
+    }
     res.json({ listings: results, total: results.length });
   } catch (err: any) {
     res.status(500).json({ error: err.message });

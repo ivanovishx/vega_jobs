@@ -28,14 +28,15 @@ interface JobListing {
 }
 
 interface MatchBreakdown {
+  contentSimilarity: number;
+  titleMatch: number;
   requiredSkills: number;
   experience: number;
-  domain: number;
   seniority: number;
   education: number;
-  location: number;
+  domain: number;
+  workMode: number;
   visa: number;
-  bonusSkills: number;
 }
 
 interface JobMatch extends JobListing {
@@ -43,6 +44,7 @@ interface JobMatch extends JobListing {
   matchBreakdown: MatchBreakdown;
   matchedKeywords: string[];
   missingKeywords: string[];
+  confidence: number;
 }
 
 interface Stats {
@@ -102,14 +104,15 @@ function MatchBadge({ job, onClick }: { job: JobMatch; onClick: () => void }) {
 
 function MatchPanel({ job, onClose }: { job: JobMatch; onClose: () => void }) {
   const breakdown = [
-    { label: 'Required Skills', value: job.matchBreakdown.requiredSkills, max: 30 },
-    { label: 'Experience', value: job.matchBreakdown.experience, max: 20 },
-    { label: 'Domain Fit', value: job.matchBreakdown.domain, max: 15 },
-    { label: 'Seniority', value: job.matchBreakdown.seniority, max: 10 },
-    { label: 'Education', value: job.matchBreakdown.education, max: 10 },
-    { label: 'Work Mode', value: job.matchBreakdown.location, max: 5 },
-    { label: 'Visa', value: job.matchBreakdown.visa, max: 5 },
-    { label: 'Bonus Skills', value: job.matchBreakdown.bonusSkills, max: 5 },
+    { label: 'Content Match', value: job.matchBreakdown.contentSimilarity, max: 30 },
+    { label: 'Title / Role', value: job.matchBreakdown.titleMatch, max: 20 },
+    { label: 'Skills', value: job.matchBreakdown.requiredSkills, max: 20 },
+    { label: 'Experience', value: job.matchBreakdown.experience, max: 10 },
+    { label: 'Seniority', value: job.matchBreakdown.seniority, max: 8 },
+    { label: 'Education', value: job.matchBreakdown.education, max: 6 },
+    { label: 'Domain Fit', value: job.matchBreakdown.domain, max: 3 },
+    { label: 'Work Mode', value: job.matchBreakdown.workMode, max: 2 },
+    { label: 'Visa', value: job.matchBreakdown.visa, max: 1 },
   ];
 
   return (
@@ -150,6 +153,13 @@ function MatchPanel({ job, onClose }: { job: JobMatch; onClose: () => void }) {
             </div>
           ))}
         </div>
+
+        {/* Data confidence — how much of the score came from real posting data
+            vs. neutral filler for fields the listing didn't provide. */}
+        <p className="text-xs text-gray-400 dark:text-zinc-500">
+          Based on <span className="font-medium text-gray-500 dark:text-zinc-400">{Math.round(job.confidence * 100)}%</span> real posting data
+          {job.confidence < 0.4 && ' — sparse listing, score is partly estimated'}
+        </p>
 
         {/* Keywords */}
         {job.matchedKeywords.length > 0 && (
@@ -353,7 +363,7 @@ export default function Jobs() {
             }`}
           >
             <Sparkles className="h-4 w-4" />
-            {matchMode ? 'Match Mode' : 'Match Mode'}
+            {matchMode ? 'Exit Match Mode' : 'Match Mode'}
           </button>
           <button
             onClick={handleRefresh}

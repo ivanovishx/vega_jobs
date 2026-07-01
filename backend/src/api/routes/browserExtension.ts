@@ -12,6 +12,7 @@ import {
   COMPANY_TEXT_SIGNALS,
 } from '../../services/urlClassifierService';
 import { candidateProfileService } from '../../services/candidateProfileService';
+import { skillExtractionService } from '../../services/skillExtractionService';
 import { prisma } from '../../db/prisma';
 import type { AuthRequest } from '../../middleware/auth';
 
@@ -103,10 +104,16 @@ router.post('/evaluate-job', async (req, res) => {
     const profile = await candidateProfileService.getCandidateProfileByUserId(userId);
     let matchScoreStr = '';
     if (profile && profile.resumeKeywords && profile.resumeKeywords.length > 0 && pageText) {
-      let matches = 0;
-      profile.resumeKeywords.forEach(kw => { if (pageText.includes(kw)) matches++; });
-      const score = Math.round((matches / profile.resumeKeywords.length) * 100);
-      matchScoreStr = ` (Match Score: ${score}%)`;
+      // Score = share of the SKILLS THE PAGE ASKS FOR that the candidate has.
+      // (The old formula divided by the candidate's total keywords, so having
+      // more skills always lowered the score — the opposite of what we want.)
+      const jobSkills = skillExtractionService.extractSkills(pageText);
+      if (jobSkills.length > 0) {
+        const candidate = new Set(profile.resumeKeywords);
+        const matched = jobSkills.filter(s => candidate.has(s)).length;
+        const score = Math.round((matched / jobSkills.length) * 100);
+        matchScoreStr = ` (Match Score: ${score}%)`;
+      }
     }
 
     const app = await prisma.application.findFirst({
