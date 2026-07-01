@@ -41,15 +41,18 @@ export const jdAnalysisService = {
       suggestedApplicationStrategy = 'Weak match. Only apply if you have time, or tailor your resume heavily.';
     }
 
+    // overallScore now comes from the multi-signal model and already reflects the
+    // new content/title signals. The per-column sub-scores below are legacy detail
+    // fields; we map the ones that still have a direct equivalent.
     const data = {
       overallScore: scoreResult.overallScore,
-      requiredSkillsScore: scoreResult.requiredSkillsScore,
-      experienceScore: scoreResult.experienceScore,
-      domainScore: scoreResult.domainScore,
-      seniorityScore: scoreResult.seniorityScore,
-      locationScore: scoreResult.locationScore,
-      visaScore: scoreResult.visaScore,
-      bonusSkillsScore: scoreResult.bonusSkillsScore,
+      requiredSkillsScore: scoreResult.breakdown.requiredSkills,
+      experienceScore: scoreResult.breakdown.experience,
+      domainScore: scoreResult.breakdown.domain,
+      seniorityScore: scoreResult.breakdown.seniority,
+      locationScore: scoreResult.breakdown.workMode,
+      visaScore: scoreResult.breakdown.visa,
+      bonusSkillsScore: scoreResult.breakdown.titleMatch,
       explanation: scoreResult.explanation,
       matchedKeywords: scoreResult.matchedKeywords,
       missingKeywords: scoreResult.missingKeywords,

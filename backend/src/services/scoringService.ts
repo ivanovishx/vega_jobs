@@ -1,4 +1,6 @@
 import { ParsedJD } from './jdParserService';
+import { skillExtractionService } from './skillExtractionService';
+import { tokenize } from './textSimilarityService';
 
 export interface CandidateProfileData {
   targetRoles: string[];
@@ -13,33 +15,54 @@ export interface CandidateProfileData {
   preferredWorkMode?: string | null;
 }
 
+export interface ScoreBreakdown {
+  contentSimilarity: number;
+  titleMatch: number;
+  requiredSkills: number;
+  experience: number;
+  seniority: number;
+  education: number;
+  domain: number;
+  workMode: number;
+  visa: number;
+}
+
 export interface ScoreResult {
   overallScore: number;
-  requiredSkillsScore: number;
-  experienceScore: number;
-  domainScore: number;
-  seniorityScore: number;
-  locationScore: number;
-  visaScore: number;
-  bonusSkillsScore: number;
-  educationScore: number;
+  // 0–1: share of the total weight that was backed by real data from the job
+  // posting (not neutral filler). Low = we're guessing more than measuring.
+  confidence: number;
+  breakdown: ScoreBreakdown;
   explanation: string;
   matchedKeywords: string[];
   missingKeywords: string[];
   riskFlags: string[];
 }
 
-// Weights: must sum to 100
-const W = {
-  skills: 30,
-  experience: 20,
-  domain: 15,
-  seniority: 10,
-  education: 10,
-  workMode: 5,
-  visa: 5,
-  bonusSkills: 5,
+// Weights per signal — must sum to 100. No single signal dominates, so a job
+// with, say, no parseable skills can still score well on title + content.
+export const WEIGHTS: Record<keyof ScoreBreakdown, number> = {
+  contentSimilarity: 30,
+  titleMatch: 20,
+  requiredSkills: 20,
+  experience: 10,
+  seniority: 8,
+  education: 6,
+  domain: 3,
+  workMode: 2,
+  visa: 1,
 };
+
+// When a signal has no data (the posting didn't provide it, or the profile
+// can't be compared on it) we neither reward nor punish — we fill it at this
+// neutral fraction of its weight. Missing data therefore pulls the score toward
+// the middle, never to 0 or 100.
+const NEUTRAL_FILL = 0.5;
+
+// A job whose only recognized skill is, say, "Manufacturing" would otherwise
+// give a full skills score to anyone who happens to list that one word. Divide
+// matches by at least this many skills so thin evidence can't reach 100%.
+const MIN_JOB_SKILLS = 3;
 
 const SENIORITY_KEYWORDS: Record<string, string[]> = {
   Junior:    ['junior', 'entry', 'entry-level', 'associate', 'new grad', 'graduate'],
@@ -63,18 +86,18 @@ const EDUCATION_KEYWORDS: Record<string, string[]> = {
 
 const EDUCATION_ORDER = ["High School", "Associate", "Bachelor's", "Master's", "PhD"];
 
+// Returns the seniority the title signals, or null when the title says nothing.
 function inferSeniorityFromTitle(jobTitle: string | undefined): string | null {
   if (!jobTitle) return null;
   const t = jobTitle.toLowerCase();
   for (const [level, keywords] of Object.entries(SENIORITY_KEYWORDS)) {
     if (keywords.some(k => t.includes(k))) return level;
   }
-  return 'Mid'; // default
+  return null;
 }
 
 function inferEducationFromRequirements(requirements: string[]): string | null {
   const text = requirements.join(' ').toLowerCase();
-  // Check from highest to lowest — return the minimum required
   for (const level of [...EDUCATION_ORDER].reverse()) {
     const keywords = EDUCATION_KEYWORDS[level];
     if (keywords.some(k => text.includes(k))) return level;
@@ -82,139 +105,175 @@ function inferEducationFromRequirements(requirements: string[]): string | null {
   return null;
 }
 
-function scoreSeniority(jobSeniority: string | null, candidateSeniority: string | null | undefined): number {
-  if (!jobSeniority || !candidateSeniority) return Math.round(W.seniority * 0.5); // neutral
+// Each signal reports a value in [0,1], or null when it has no data.
+function scoreSeniority(jobSeniority: string | null, candidateSeniority: string | null | undefined): number | null {
+  if (!jobSeniority || !candidateSeniority) return null;
   const jobIdx = SENIORITY_ORDER.indexOf(jobSeniority);
   const candidateIdx = SENIORITY_ORDER.indexOf(candidateSeniority);
-  if (jobIdx === -1 || candidateIdx === -1) return Math.round(W.seniority * 0.5);
+  if (jobIdx === -1 || candidateIdx === -1) return null;
   const diff = candidateIdx - jobIdx;
-  if (diff === 0) return W.seniority;          // exact match
-  if (diff === 1) return W.seniority;          // one above: still great
-  if (diff === -1) return Math.round(W.seniority * 0.6); // one below: possible stretch
-  if (diff >= 2) return Math.round(W.seniority * 0.3);   // overqualified
-  return 0;                                               // too junior
+  if (diff === 0) return 1;      // exact match
+  if (diff === 1) return 1;      // one above: still great
+  if (diff === -1) return 0.6;   // one below: stretch
+  if (diff >= 2) return 0.3;     // overqualified
+  return 0;                       // too junior
 }
 
-function scoreEducation(required: string | null, candidate: string | null | undefined): number {
-  if (!required) return W.education; // no requirement — full credit
-  if (!candidate) return Math.round(W.education * 0.5); // unknown — neutral
+function scoreEducation(required: string | null, candidate: string | null | undefined): number | null {
+  if (!required) return null;                 // no requirement stated → no signal
+  if (!candidate) return null;                // candidate hasn't told us → no signal
   const reqIdx = EDUCATION_ORDER.indexOf(required);
   const canIdx = EDUCATION_ORDER.indexOf(candidate);
-  if (canIdx >= reqIdx) return W.education;                        // meets or exceeds
+  if (reqIdx === -1 || canIdx === -1) return null;
+  if (canIdx >= reqIdx) return 1;             // meets or exceeds
   const deficit = reqIdx - canIdx;
-  return Math.max(0, W.education - deficit * Math.round(W.education / 3));
+  return Math.max(0, 1 - deficit / 3);
+}
+
+// Token-overlap between the job title and the candidate's target roles.
+function scoreTitleMatch(title: string | undefined, targetRoles: string[]): number | null {
+  const titleTokens = new Set(tokenize(title ?? ''));
+  const roleTokenLists = targetRoles.map(r => tokenize(r)).filter(toks => toks.length > 0);
+  if (titleTokens.size === 0 || roleTokenLists.length === 0) return null;
+  // Best-matching target role: fraction of its tokens present in the title.
+  return Math.max(
+    ...roleTokenLists.map(roleTokens => roleTokens.filter(t => titleTokens.has(t)).length / roleTokens.length)
+  );
+}
+
+export interface ScoreExtras {
+  // Precomputed TF-IDF cosine (already scaled to 0–1) — supplied by the caller
+  // because it needs the whole job corpus to compute IDF. null when unavailable.
+  contentSimilarity?: number | null;
 }
 
 export const scoringService = {
-  score(parsedJd: ParsedJD, profile: CandidateProfileData): ScoreResult {
+  score(parsedJd: ParsedJD, profile: CandidateProfileData, extras: ScoreExtras = {}): ScoreResult {
     let explanation = '';
     const matchedKeywords: string[] = [];
     const missingKeywords: string[] = [];
 
-    // Combined candidate skills: coreSkills + tools
-    const allCandidateSkills = [...profile.coreSkills, ...profile.tools].map(s => s.toLowerCase());
+    // Candidate skills, canonicalized so free-text lines up with the dictionary.
+    const candidateSkillSet = new Set(
+      [...profile.coreSkills, ...profile.tools]
+        .map(s => skillExtractionService.canonicalize(s))
+        .filter((s): s is string => !!s)
+    );
 
-    // 1. Required Skills (30%)
-    let requiredSkillsScore = 0;
-    if (parsedJd.requiredSkills.length > 0) {
-      const matched = parsedJd.requiredSkills.filter(s => allCandidateSkills.includes(s.toLowerCase()));
-      const missing = parsedJd.requiredSkills.filter(s => !allCandidateSkills.includes(s.toLowerCase()));
+    // ── Signal: required skills (dictionary overlap) ──
+    let skillsValue: number | null;
+    const jobSkills = Array.from(new Set(
+      parsedJd.requiredSkills
+        .map(s => skillExtractionService.canonicalize(s))
+        .filter((s): s is string => !!s)
+    ));
+    if (jobSkills.length > 0) {
+      const matched = jobSkills.filter(s => candidateSkillSet.has(s));
+      const missing = jobSkills.filter(s => !candidateSkillSet.has(s));
       matchedKeywords.push(...matched);
       missingKeywords.push(...missing);
-      requiredSkillsScore = Math.round((matched.length / parsedJd.requiredSkills.length) * W.skills);
+      skillsValue = matched.length / Math.max(jobSkills.length, MIN_JOB_SKILLS);
     } else {
-      requiredSkillsScore = W.skills;
+      skillsValue = null; // job listed no recognizable skills — no signal
     }
 
-    // 2. Experience (20%)
-    let experienceScore = 0;
-    if (parsedJd.yearsOfExperience !== undefined) {
-      if (profile.yearsOfExperience >= parsedJd.yearsOfExperience) {
-        experienceScore = W.experience;
-      } else {
-        const deficit = parsedJd.yearsOfExperience - profile.yearsOfExperience;
-        experienceScore = Math.max(0, W.experience - deficit * 4);
-        explanation += `${parsedJd.yearsOfExperience}+ years required, you have ${profile.yearsOfExperience}. `;
-      }
+    // ── Signal: experience ──
+    let experienceValue: number | null;
+    if (parsedJd.yearsOfExperience === undefined) {
+      experienceValue = null;
+    } else if (profile.yearsOfExperience >= parsedJd.yearsOfExperience) {
+      experienceValue = 1;
     } else {
-      experienceScore = W.experience;
+      const deficit = parsedJd.yearsOfExperience - profile.yearsOfExperience;
+      experienceValue = Math.max(0, 1 - deficit * 0.2); // ~20% per missing year
+      explanation += `${parsedJd.yearsOfExperience}+ years required, you have ${profile.yearsOfExperience}. `;
     }
 
-    // 3. Domain Fit (15%) — direct match, no dictionary
-    let domainScore = 0;
+    // ── Signal: domain fit (direct text match) ──
+    let domainValue: number | null;
     if (profile.domainExperience.length > 0) {
       const jobText = [
-        ...(parsedJd.requiredSkills),
-        ...(parsedJd.preferredSkills),
-        ...(parsedJd.domainKeywords),
-        ...(parsedJd.responsibilities),
+        ...parsedJd.requiredSkills,
+        ...parsedJd.preferredSkills,
+        ...parsedJd.domainKeywords,
+        ...parsedJd.responsibilities,
         parsedJd.title ?? '',
         parsedJd.company ?? '',
       ].join(' ').toLowerCase();
-
       const matchedDomains = profile.domainExperience.filter(d => jobText.includes(d.toLowerCase()));
       matchedKeywords.push(...matchedDomains);
-      // Score proportional to how many of YOUR domains appear in the job (coverage)
-      domainScore = Math.round((matchedDomains.length / profile.domainExperience.length) * W.domain);
+      domainValue = matchedDomains.length / profile.domainExperience.length;
     } else {
-      domainScore = Math.round(W.domain * 0.5); // neutral if no domain set
+      domainValue = null;
     }
 
-    // 4. Seniority (10%)
-    const jobSeniority = inferSeniorityFromTitle(parsedJd.title);
-    const seniorityScore = scoreSeniority(jobSeniority, profile.seniorityLevel);
+    // ── Signal: seniority ──
+    const seniorityValue = scoreSeniority(inferSeniorityFromTitle(parsedJd.title), profile.seniorityLevel);
 
-    // 5. Education (10%)
-    const requiredEdu = inferEducationFromRequirements(parsedJd.responsibilities);
-    const educationScore = scoreEducation(requiredEdu, profile.educationLevel);
+    // ── Signal: education ──
+    const educationValue = scoreEducation(inferEducationFromRequirements(parsedJd.responsibilities), profile.educationLevel);
 
-    // 6. Work Mode (5%)
-    let locationScore = 0;
-    if (parsedJd.workMode && profile.preferredWorkMode) {
-      if (parsedJd.workMode.toLowerCase() === profile.preferredWorkMode.toLowerCase()) {
-        locationScore = W.workMode;
-      } else if (parsedJd.workMode === 'unknown') {
-        locationScore = Math.round(W.workMode * 0.6);
-      }
-    } else if (!parsedJd.workMode || parsedJd.workMode === 'unknown') {
-      locationScore = Math.round(W.workMode * 0.6);
-    }
-
-    // 7. Visa (5%)
-    let visaScore = W.visa;
-    if (parsedJd.visaLanguage.some(v => v.includes('no sponsorship') || v.includes('no c2c'))) {
-      if (profile.workAuthorization?.toLowerCase().includes('need sponsorship')) {
-        visaScore = 0;
-        explanation += 'This role may not offer visa sponsorship. ';
-      }
-    }
-
-    // 8. Bonus Skills (5%)
-    let bonusSkillsScore = 0;
-    if (parsedJd.preferredSkills.length > 0) {
-      const matched = parsedJd.preferredSkills.filter(s => allCandidateSkills.includes(s.toLowerCase()));
-      matchedKeywords.push(...matched);
-      bonusSkillsScore = Math.round((matched.length / parsedJd.preferredSkills.length) * W.bonusSkills);
+    // ── Signal: work mode ──
+    let workModeValue: number | null;
+    if (!parsedJd.workMode || parsedJd.workMode === 'unknown' || !profile.preferredWorkMode) {
+      workModeValue = null;
     } else {
-      bonusSkillsScore = W.bonusSkills;
+      workModeValue = parsedJd.workMode.toLowerCase() === profile.preferredWorkMode.toLowerCase() ? 1 : 0;
     }
 
-    const overallScore = Math.min(
-      100,
-      requiredSkillsScore + experienceScore + domainScore + seniorityScore +
-      educationScore + locationScore + visaScore + bonusSkillsScore
-    );
+    // ── Signal: visa ──
+    let visaValue: number | null;
+    if (parsedJd.visaLanguage.length === 0) {
+      visaValue = null;
+    } else if (parsedJd.visaLanguage.some(v => v.includes('no sponsorship') || v.includes('no c2c'))
+               && profile.workAuthorization?.toLowerCase().includes('need sponsorship')) {
+      visaValue = 0;
+      explanation += 'This role may not offer visa sponsorship. ';
+    } else {
+      visaValue = 1;
+    }
+
+    // ── Signal: title ↔ target roles ──
+    const titleValue = scoreTitleMatch(parsedJd.title, profile.targetRoles);
+
+    // ── Signal: content similarity (supplied by caller) ──
+    const contentValue = extras.contentSimilarity ?? null;
+
+    // ── Blend all signals with graceful degradation ──
+    const values: Record<keyof ScoreBreakdown, number | null> = {
+      contentSimilarity: contentValue,
+      titleMatch: titleValue,
+      requiredSkills: skillsValue,
+      experience: experienceValue,
+      seniority: seniorityValue,
+      education: educationValue,
+      domain: domainValue,
+      workMode: workModeValue,
+      visa: visaValue,
+    };
+
+    const breakdown = {} as ScoreBreakdown;
+    let totalWeight = 0;
+    let availableWeight = 0;
+    for (const key of Object.keys(WEIGHTS) as (keyof ScoreBreakdown)[]) {
+      const weight = WEIGHTS[key];
+      const value = values[key];
+      totalWeight += weight;
+      if (value === null) {
+        breakdown[key] = Math.round(NEUTRAL_FILL * weight);
+      } else {
+        breakdown[key] = Math.round(value * weight);
+        availableWeight += weight;
+      }
+    }
+
+    const overallScore = (Object.values(breakdown) as number[]).reduce((a, b) => a + b, 0);
+    const confidence = totalWeight === 0 ? 0 : availableWeight / totalWeight;
 
     return {
-      overallScore,
-      requiredSkillsScore,
-      experienceScore,
-      domainScore,
-      seniorityScore,
-      educationScore,
-      locationScore,
-      visaScore,
-      bonusSkillsScore,
+      overallScore: Math.min(100, overallScore),
+      confidence,
+      breakdown,
       explanation,
       matchedKeywords: [...new Set(matchedKeywords)],
       missingKeywords: [...new Set(missingKeywords)],

@@ -312,7 +312,7 @@ export default function CandidateProfile() {
               <svg className={`h-5 w-5 text-gray-400 transition-transform ${skillsOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
             </button>
             {skillsOpen && (<>
-            <p className="text-sm text-gray-500 dark:text-zinc-400 mb-4">Upload your PDF resume to automatically extract keywords, or manage them manually. These keywords are used by the Chrome Extension to calculate a Match Score for new jobs.</p>
+            <p className="text-sm text-gray-500 dark:text-zinc-400 mb-4">Upload your PDF resume to automatically extract your skills, or manage them manually. These skills power both the Chrome Extension Match Score and the "Match Mode" ranking on the Jobs page.</p>
 
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 dark:text-zinc-300 mb-1">Upload Resume (PDF)</label>

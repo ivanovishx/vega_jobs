@@ -1,62 +1,94 @@
 import { describe, it, expect } from 'vitest';
-import { scoringService } from '../services/scoringService';
+import { scoringService, WEIGHTS } from '../services/scoringService';
 
-describe('scoringService', () => {
-  it('should score a perfect match high', () => {
-    const parsedJd = {
-      requiredSkills: ['python', 'c++'],
-      preferredSkills: ['rust'],
-      yearsOfExperience: 5,
-      domainKeywords: ['robotics'],
-      tools: [],
-      visaLanguage: [],
-      riskFlags: [],
-      responsibilities: []
-    };
+// Minimal builders so each test only states what it cares about.
+const jd = (over: any = {}) => ({
+  title: undefined,
+  company: undefined,
+  workMode: 'unknown',
+  requiredSkills: [],
+  preferredSkills: [],
+  domainKeywords: [],
+  yearsOfExperience: undefined,
+  visaLanguage: [],
+  riskFlags: [],
+  tools: [],
+  responsibilities: [],
+  ...over,
+});
 
-    const profile = {
-      targetRoles: ['TPM'],
-      targetLocations: [],
-      yearsOfExperience: 6,
-      coreSkills: ['python', 'c++', 'rust'],
-      tools: [],
-      domainExperience: ['robotics']
-    };
+const profile = (over: any = {}) => ({
+  targetRoles: [],
+  targetLocations: [],
+  workAuthorization: null,
+  yearsOfExperience: 0,
+  seniorityLevel: null,
+  educationLevel: null,
+  coreSkills: [],
+  tools: [],
+  domainExperience: [],
+  preferredWorkMode: null,
+  ...over,
+});
 
-    const result = scoringService.score(parsedJd, profile);
-
-    // Weights: skills=30, experience=20, domain=15, bonus=5
-    expect(result.requiredSkillsScore).toBe(30);  // 2/2 required matched
-    expect(result.experienceScore).toBe(20);       // 6 >= 5
-    expect(result.domainScore).toBe(15);           // 'robotics' in domainKeywords → matched
-    expect(result.bonusSkillsScore).toBe(5);       // 1/1 preferred matched
-    expect(result.overallScore).toBeGreaterThan(80);
+describe('scoringService (multi-signal)', () => {
+  it('gives full credit for a complete skills overlap', () => {
+    const result = scoringService.score(
+      jd({ requiredSkills: ['python', 'c++', 'rust'] }) as any,
+      profile({ coreSkills: ['python', 'c++', 'rust'] }) as any,
+    );
+    expect(result.breakdown.requiredSkills).toBe(WEIGHTS.requiredSkills); // 3/3 matched
+    expect(result.matchedKeywords).toEqual(expect.arrayContaining(['Python', 'C++', 'Rust']));
   });
 
-  it('should penalize for missing experience', () => {
-    const parsedJd = {
-      requiredSkills: [],
-      preferredSkills: [],
-      yearsOfExperience: 5,
-      domainKeywords: [],
-      tools: [],
-      visaLanguage: [],
-      riskFlags: [],
-      responsibilities: []
-    };
+  it('damps the skills score when the job lists too few skills to be reliable', () => {
+    // Only one recognized skill → matching it should not reach a full score.
+    const result = scoringService.score(
+      jd({ requiredSkills: ['manufacturing'] }) as any,
+      profile({ coreSkills: ['manufacturing'] }) as any,
+    );
+    expect(result.breakdown.requiredSkills).toBe(Math.round(WEIGHTS.requiredSkills / 3)); // 1/3
+  });
 
-    const profile = {
-      targetRoles: [],
-      targetLocations: [],
-      yearsOfExperience: 2, // 3 years deficit
-      coreSkills: [],
-      tools: [],
-      domainExperience: []
-    };
+  it('passes through the content-similarity signal', () => {
+    const result = scoringService.score(jd() as any, profile() as any, { contentSimilarity: 1 });
+    expect(result.breakdown.contentSimilarity).toBe(WEIGHTS.contentSimilarity);
+  });
 
-    const result = scoringService.score(parsedJd, profile);
+  it('scores title against target roles even with no skills', () => {
+    const result = scoringService.score(
+      jd({ title: 'Senior Product Manager' }) as any,
+      profile({ targetRoles: ['Product Manager'] }) as any,
+    );
+    expect(result.breakdown.titleMatch).toBe(WEIGHTS.titleMatch); // both role tokens present
+    expect(result.breakdown.requiredSkills).toBe(Math.round(WEIGHTS.requiredSkills * 0.5)); // no data → neutral
+  });
 
-    // W.experience=20, deficit=3, penalty=3*4=12 → 20-12=8
-    expect(result.experienceScore).toBe(8);
+  it('penalizes an experience deficit but does not zero it', () => {
+    const result = scoringService.score(
+      jd({ yearsOfExperience: 5 }) as any,
+      profile({ yearsOfExperience: 2 }) as any, // 3-year deficit → 1 - 0.6 = 0.4
+    );
+    expect(result.breakdown.experience).toBe(Math.round(WEIGHTS.experience * 0.4));
+  });
+
+  it('overallScore equals the sum of the breakdown', () => {
+    const result = scoringService.score(
+      jd({ requiredSkills: ['python'], title: 'Data Scientist' }) as any,
+      profile({ coreSkills: ['python'], targetRoles: ['Data Scientist'] }) as any,
+      { contentSimilarity: 0.5 },
+    );
+    const sum = Object.values(result.breakdown).reduce((a, b) => a + b, 0);
+    expect(result.overallScore).toBe(Math.min(100, sum));
+  });
+
+  it('reports lower confidence when the posting has little data', () => {
+    const rich = scoringService.score(
+      jd({ requiredSkills: ['python'], yearsOfExperience: 3, responsibilities: ["Bachelor's degree required"] }) as any,
+      profile({ coreSkills: ['python'], educationLevel: "Master's" }) as any,
+      { contentSimilarity: 0.4 },
+    );
+    const sparse = scoringService.score(jd() as any, profile({ coreSkills: ['python'] }) as any);
+    expect(rich.confidence).toBeGreaterThan(sparse.confidence);
   });
 });

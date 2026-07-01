@@ -1,14 +1,13 @@
 import { Router } from 'express';
 import { candidateProfileService } from '../../services/candidateProfileService';
 import { customFieldService } from '../../services/customFieldService';
+import { skillExtractionService } from '../../services/skillExtractionService';
 import { PDFParse } from 'pdf-parse';
 import multer from 'multer';
 import type { AuthRequest } from '../../middleware/auth';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
-
-const STOP_WORDS = new Set(['the', 'and', 'for', 'with', 'that', 'this', 'from', 'are', 'was', 'were', 'have', 'has', 'had', 'what', 'when', 'where', 'who', 'which', 'why', 'how', 'all', 'any', 'both', 'each', 'few', 'more', 'most', 'other', 'some', 'such', 'no', 'nor', 'not', 'only', 'own', 'same', 'so', 'than', 'too', 'very', 'can', 'will', 'just', 'should', 'now']);
 
 router.get('/', async (req, res) => {
   try {
@@ -49,9 +48,9 @@ router.post('/resume-pdf', upload.single('resume'), async (req, res) => {
     const text = textResult.text;
     await parser.destroy();
 
-    const cleanText = text.toLowerCase().replace(/[^a-z0-9+#]/g, ' ');
-    const words = cleanText.split(/\s+/).filter((w: string) => w.length > 2 && !STOP_WORDS.has(w));
-    const uniqueKeywords = Array.from(new Set(words));
+    // Match the resume against the curated skill dictionary instead of turning
+    // every word into a keyword. Result is an actual list of skills.
+    const uniqueKeywords = skillExtractionService.extractSkills(text);
 
     const userId = (req as AuthRequest).userId!;
     let profile = await candidateProfileService.getCandidateProfileByUserId(userId);
@@ -60,6 +59,7 @@ router.post('/resume-pdf', upload.single('resume'), async (req, res) => {
     }
 
     const updated = await candidateProfileService.updateCandidateProfile(profile.id, {
+      resumeText: text,
       resumeKeywords: uniqueKeywords
     });
 
@@ -77,6 +77,16 @@ router.put('/keywords', async (req, res) => {
       return res.status(400).json({ error: 'keywords must be an array' });
     }
 
+    // Canonicalize + de-duplicate so manual entries match the same form the
+    // extractor produces (e.g. "js" -> "JavaScript", "postgres" -> "PostgreSQL").
+    const normalized = Array.from(
+      new Set(
+        keywords
+          .map((k: unknown) => (typeof k === 'string' ? skillExtractionService.canonicalize(k) : null))
+          .filter((k): k is string => !!k)
+      )
+    );
+
     const userId = (req as AuthRequest).userId!;
     let profile = await candidateProfileService.getCandidateProfileByUserId(userId);
     if (!profile) {
@@ -84,7 +94,7 @@ router.put('/keywords', async (req, res) => {
     }
 
     const updated = await candidateProfileService.updateCandidateProfile(profile.id, {
-      resumeKeywords: keywords
+      resumeKeywords: normalized
     });
 
     res.json(updated);
