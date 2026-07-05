@@ -13,6 +13,7 @@ import {
   MapPin,
   RefreshCw,
   Sparkles,
+  Loader2,
   X,
 } from 'lucide-react';
 
@@ -356,14 +357,15 @@ export default function Jobs() {
           )}
           <button
             onClick={handleToggleMatchMode}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border transition-colors ${
+            disabled={matchLoading}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border transition-colors disabled:cursor-wait ${
               matchMode
                 ? 'bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700'
                 : 'text-gray-600 dark:text-zinc-400 bg-white dark:bg-[#16161a] border-gray-200 dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/[0.05]'
             }`}
           >
-            <Sparkles className="h-4 w-4" />
-            {matchMode ? 'Exit Match Mode' : 'Match Mode'}
+            {matchLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            {matchLoading ? 'Generando…' : matchMode ? 'Exit Match Mode' : 'Match Mode'}
           </button>
           <button
             onClick={handleRefresh}
@@ -495,15 +497,31 @@ export default function Jobs() {
             </thead>
             <tbody>
               {isLoading ? (
-                Array.from({ length: 8 }).map((_, i) => (
-                  <tr key={i} className="border-b border-gray-50 dark:border-white/5">
-                    {Array.from({ length: matchMode ? 6 : 5 }).map((_, j) => (
-                      <td key={j} className="px-4 py-3">
-                        <div className="h-4 bg-gray-100 dark:bg-white/[0.06] rounded animate-pulse" style={{ width: `${60 + (j * 10) % 30}%` }} />
-                      </td>
-                    ))}
+                matchMode ? (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-20">
+                      <div className="flex flex-col items-center justify-center gap-3 text-center">
+                        <Loader2 className="h-7 w-7 text-indigo-500 dark:text-indigo-400 animate-spin" />
+                        <div>
+                          <p className="text-sm font-medium text-gray-700 dark:text-zinc-200">Analyzing your matches…</p>
+                          <p className="text-xs text-gray-400 dark:text-zinc-500 mt-1">
+                            Scoring {stats.total > 0 ? `${stats.total.toLocaleString()} jobs` : 'jobs'} against your profile
+                          </p>
+                        </div>
+                      </div>
+                    </td>
                   </tr>
-                ))
+                ) : (
+                  Array.from({ length: 8 }).map((_, i) => (
+                    <tr key={i} className="border-b border-gray-50 dark:border-white/5">
+                      {Array.from({ length: 5 }).map((_, j) => (
+                        <td key={j} className="px-4 py-3">
+                          <div className="h-4 bg-gray-100 dark:bg-white/[0.06] rounded animate-pulse" style={{ width: `${60 + (j * 10) % 30}%` }} />
+                        </td>
+                      ))}
+                    </tr>
+                  ))
+                )
               ) : matchMode ? (
                 pagedMatches.length === 0 ? (
                   <tr>
