@@ -13,6 +13,7 @@ import Dashboard from './pages/Dashboard';
 import Applications from './pages/Applications';
 import JobAnalyzer from './pages/JobAnalyzer';
 import CandidateProfile from './pages/CandidateProfile';
+import CVTemplate from './pages/CVTemplate';
 import SavedJobs from './pages/SavedJobs';
 import ApplicationDetail from './pages/ApplicationDetail';
 import Jobs from './pages/Jobs';
@@ -103,6 +104,7 @@ function AppRoutes() {
               <Route path="/saved-jobs" element={<ProtectedRoute><SavedJobs /></ProtectedRoute>} />
               <Route path="/analyzer" element={<ProtectedRoute><JobAnalyzer /></ProtectedRoute>} />
               <Route path="/profile" element={<ProtectedRoute><CandidateProfile /></ProtectedRoute>} />
+              <Route path="/cv-template" element={<ProtectedRoute><CVTemplate /></ProtectedRoute>} />
               <Route path="/jobs" element={<ProtectedRoute><Jobs /></ProtectedRoute>} />
               <Route path="/companies" element={<ProtectedRoute><Companies /></ProtectedRoute>} />
               <Route path="/admin" element={<ProtectedRoute requireRole="ADMIN"><Admin /></ProtectedRoute>} />
