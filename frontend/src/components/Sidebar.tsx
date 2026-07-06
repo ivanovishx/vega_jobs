@@ -21,7 +21,7 @@ export default function Sidebar({ isOpen, onClose, onOpenAuth }: SidebarProps) {
     { name: 'Job Analyzer', path: '/analyzer', icon: FileSearch },
     { name: 'Jobs', path: '/jobs', icon: ListChecks },
     { name: 'Companies', path: '/companies', icon: Building2 },
-    { name: 'Plantilla CV', path: '/cv-template', icon: FileText },
+    { name: 'CV Template', path: '/cv-template', icon: FileText },
     { name: 'Profile', path: '/profile', icon: User },
     ...(user?.role === 'ADMIN' ? [{ name: 'Admin', path: '/admin', icon: ShieldCheck }] : []),
   ];
@@ -52,7 +52,7 @@ export default function Sidebar({ isOpen, onClose, onOpenAuth }: SidebarProps) {
             <button
               type="button"
               onClick={user ? undefined : onOpenAuth}
-              aria-label="Cuenta de usuario"
+              aria-label="User account"
               className="flex items-center justify-center"
             >
               {user ? (
@@ -124,7 +124,7 @@ export default function Sidebar({ isOpen, onClose, onOpenAuth }: SidebarProps) {
             <button
               onClick={logout}
               className="flex items-center gap-1 text-xs text-gray-400 dark:text-zinc-500 hover:text-red-500 dark:hover:text-red-400 transition-colors flex-shrink-0"
-              title="Cerrar sesión"
+              title="Log out"
             >
               <LogOut className="h-4 w-4" />
             </button>

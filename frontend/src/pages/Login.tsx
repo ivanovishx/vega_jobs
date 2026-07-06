@@ -23,7 +23,7 @@ export default function Login() {
         <div className="bg-gradient-to-br from-indigo-600 to-indigo-700 px-6 pt-6 pb-8">
           <h1 className="text-2xl font-bold text-white tracking-tight mb-1">Vega</h1>
           <p className="text-indigo-200 text-sm">
-            {tab === 'login' ? 'Bienvenido de vuelta' : 'Crea tu cuenta gratis'}
+            {tab === 'login' ? 'Welcome back' : 'Create your free account'}
           </p>
         </div>
 
@@ -36,7 +36,7 @@ export default function Login() {
                 : 'text-gray-500 dark:text-zinc-400 hover:text-gray-700 dark:hover:text-zinc-200 bg-gray-50 dark:bg-white/[0.04]'
             }`}
           >
-            Iniciar sesión
+            Sign in
           </button>
           <button
             onClick={() => setTab('register')}
@@ -46,7 +46,7 @@ export default function Login() {
                 : 'text-gray-500 dark:text-zinc-400 hover:text-gray-700 dark:hover:text-zinc-200 bg-gray-50 dark:bg-white/[0.04]'
             }`}
           >
-            Crear cuenta
+            Create account
           </button>
         </div>
 
@@ -54,7 +54,7 @@ export default function Login() {
           {error && (
             <div className="mb-4 flex items-start gap-2 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-lg px-3 py-2">
               <span className="text-red-500 dark:text-red-400 text-xs mt-0.5">⚠</span>
-              <p className="text-red-600 dark:text-red-400 text-xs">Error al iniciar sesión. Intenta de nuevo.</p>
+              <p className="text-red-600 dark:text-red-400 text-xs">Sign in failed. Please try again.</p>
             </div>
           )}
 
@@ -83,7 +83,7 @@ function LoginForm() {
       await refreshUser();
       navigate('/dashboard');
     } catch (err: any) {
-      setError(err.response?.data?.error ?? 'Ocurrió un error. Intenta de nuevo.');
+      setError(err.response?.data?.error ?? 'Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -94,25 +94,25 @@ function LoginForm() {
       <GoogleButton />
       <Divider />
       <form onSubmit={handleSubmit} className="space-y-4">
-        <Field icon={<Mail className="h-4 w-4" />} label="Correo electrónico">
+        <Field icon={<Mail className="h-4 w-4" />} label="Email">
           <input
             type="email"
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="tu@email.com"
+            placeholder="you@email.com"
             className="input-field"
           />
         </Field>
 
-        <Field icon={<Lock className="h-4 w-4" />} label="Contraseña">
+        <Field icon={<Lock className="h-4 w-4" />} label="Password">
           <div className="relative">
             <input
               type={showPassword ? 'text' : 'password'}
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Tu contraseña"
+              placeholder="Your password"
               className="input-field pr-10"
             />
             <button
@@ -128,7 +128,7 @@ function LoginForm() {
         {error && <ErrorMsg>{error}</ErrorMsg>}
 
         <button type="submit" disabled={loading} className="submit-btn">
-          {loading ? <Spinner /> : 'Iniciar sesión'}
+          {loading ? <Spinner /> : 'Sign in'}
         </button>
       </form>
     </>
@@ -149,7 +149,7 @@ function RegisterForm({ onSwitchTab }: { onSwitchTab: () => void }) {
     e.preventDefault();
     setError('');
     if (password.length < 6) {
-      setError('La contraseña debe tener al menos 6 caracteres');
+      setError('Password must be at least 6 characters');
       return;
     }
     setLoading(true);
@@ -158,7 +158,7 @@ function RegisterForm({ onSwitchTab }: { onSwitchTab: () => void }) {
       await refreshUser();
       navigate('/dashboard');
     } catch (err: any) {
-      setError(err.response?.data?.error ?? 'Ocurrió un error. Intenta de nuevo.');
+      setError(err.response?.data?.error ?? 'Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -169,36 +169,36 @@ function RegisterForm({ onSwitchTab }: { onSwitchTab: () => void }) {
       <GoogleButton />
       <Divider />
       <form onSubmit={handleSubmit} className="space-y-4">
-        <Field icon={<Mail className="h-4 w-4" />} label="Nombre completo">
+        <Field icon={<Mail className="h-4 w-4" />} label="Full name">
           <input
             type="text"
             required
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Juan Pérez"
+            placeholder="John Doe"
             className="input-field"
           />
         </Field>
 
-        <Field icon={<Mail className="h-4 w-4" />} label="Correo electrónico">
+        <Field icon={<Mail className="h-4 w-4" />} label="Email">
           <input
             type="email"
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="tu@email.com"
+            placeholder="you@email.com"
             className="input-field"
           />
         </Field>
 
-        <Field icon={<Lock className="h-4 w-4" />} label="Contraseña">
+        <Field icon={<Lock className="h-4 w-4" />} label="Password">
           <div className="relative">
             <input
               type={showPassword ? 'text' : 'password'}
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Mínimo 6 caracteres"
+              placeholder="At least 6 characters"
               className="input-field pr-10"
             />
             <button
@@ -214,14 +214,14 @@ function RegisterForm({ onSwitchTab }: { onSwitchTab: () => void }) {
         {error && <ErrorMsg>{error}</ErrorMsg>}
 
         <button type="submit" disabled={loading} className="submit-btn">
-          {loading ? <Spinner /> : 'Crear cuenta'}
+          {loading ? <Spinner /> : 'Create account'}
         </button>
       </form>
 
       <p className="text-center text-sm text-gray-500 dark:text-zinc-400 mt-4">
-        ¿Ya tienes cuenta?{' '}
+        Already have an account?{' '}
         <button onClick={onSwitchTab} className="text-indigo-600 dark:text-indigo-400 font-medium hover:underline">
-          Inicia sesión
+          Sign in
         </button>
       </p>
     </>
@@ -235,7 +235,7 @@ function GoogleButton() {
       className="flex items-center justify-center gap-3 w-full border border-gray-300 dark:border-white/15 rounded-xl px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-zinc-300 hover:bg-gray-50 dark:hover:bg-white/[0.05] transition-colors"
     >
       <GoogleIcon />
-      Continuar con Google
+      Continue with Google
     </a>
   );
 }
@@ -244,7 +244,7 @@ function Divider() {
   return (
     <div className="flex items-center gap-3 my-4">
       <div className="flex-1 h-px bg-gray-200 dark:bg-white/[0.09]" />
-      <span className="text-xs text-gray-400 dark:text-zinc-500 font-medium">o con tu correo</span>
+      <span className="text-xs text-gray-400 dark:text-zinc-500 font-medium">or with your email</span>
       <div className="flex-1 h-px bg-gray-200 dark:bg-white/[0.09]" />
     </div>
   );
@@ -275,7 +275,7 @@ function Spinner() {
   return (
     <span className="flex items-center justify-center gap-2">
       <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-      Cargando...
+      Loading...
     </span>
   );
 }

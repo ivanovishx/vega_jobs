@@ -17,8 +17,8 @@ export default function ThemeToggle({ className }: ThemeToggleProps) {
       onClick={toggleTheme}
       role="switch"
       aria-checked={isDark}
-      aria-label={isDark ? 'Activar modo claro' : 'Activar modo oscuro'}
-      title={isDark ? 'Modo claro' : 'Modo oscuro'}
+      aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+      title={isDark ? 'Light mode' : 'Dark mode'}
       className={clsx(
         'flex items-center justify-center h-8 w-8 rounded-lg transition-colors',
         'text-gray-500 hover:bg-gray-100 hover:text-gray-900',
