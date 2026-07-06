@@ -8,15 +8,15 @@ import { fetchProfile, updateProfile } from '../api/client';
 // CV_TEMPLATE_FILE_ID keeps pointing to the same file.
 const IMAGE_URL = '/cv-template.png';
 
-// Backend root (auth routes live outside the /api prefix). "Guardar en mi Drive"
+// Backend root (auth routes live outside the /api prefix). "Save to my Drive"
 // is a full-page OAuth redirect, same pattern as the Google login button.
 const AUTH_BASE = import.meta.env.VITE_API_URL?.replace(/\/api\/?$/, '') || 'http://localhost:3001';
 const DRIVE_SAVE_URL = `${AUTH_BASE}/auth/google/drive`;
 
 function buildPrompt(profile: any): string {
-  const name = profile?.user?.name || '[Tu nombre]';
-  const email = profile?.user?.email || '[Tu email]';
-  const phone = profile?.phone || '[Tu teléfono]';
+  const name = profile?.user?.name || '[Your name]';
+  const email = profile?.user?.email || '[Your email]';
+  const phone = profile?.phone || '[Your phone]';
 
   const links = [profile?.linkedInUrl, profile?.githubUrl, profile?.portfolioUrl]
     .filter(Boolean)
@@ -24,29 +24,29 @@ function buildPrompt(profile: any): string {
 
   const skills = Array.isArray(profile?.resumeKeywords) && profile.resumeKeywords.length
     ? profile.resumeKeywords.join(', ')
-    : '[Tus habilidades / keywords]';
+    : '[Your skills / keywords]';
 
   const currentCv = profile?.resumeText?.trim()
     ? profile.resumeText.trim()
-    : '[Pega aquí el contenido actual de tu CV]';
+    : '[Paste your current CV content here]';
 
-  return `Actúa como un experto en redacción de CVs y reclutamiento (ATS).
-Voy a adjuntar una PLANTILLA de CV. Reescribe y mejora mi CV siguiendo
-exactamente su estructura, orden de secciones y estilo.
+  return `Act as an expert in CV writing and recruiting (ATS).
+I'm going to attach a CV TEMPLATE. Rewrite and improve my CV following
+exactly its structure, section order, and style.
 
-Mis datos actuales:
-- Nombre: ${name}
-- Contacto: ${email} · ${phone} · ${links}
-- Habilidades / keywords: ${skills}
-- Experiencia y contenido actual:
+My current details:
+- Name: ${name}
+- Contact: ${email} · ${phone} · ${links}
+- Skills / keywords: ${skills}
+- Experience and current content:
 ${currentCv}
 
-Instrucciones:
-1. Respeta la estructura de la plantilla adjunta.
-2. Usa verbos de acción y cuantifica logros cuando sea posible.
-3. Optimiza para ATS incorporando naturalmente las keywords listadas.
-4. Mantén todo en 1 página salvo que la experiencia justifique 2.
-5. Devuelve el CV final listo para copiar.`;
+Instructions:
+1. Respect the structure of the attached template.
+2. Use action verbs and quantify achievements whenever possible.
+3. Optimize for ATS by naturally incorporating the listed keywords.
+4. Keep everything to 1 page unless the experience justifies 2.
+5. Return the final CV ready to copy.`;
 }
 
 type DriveStatus = 'ok' | 'error' | 'auth';
@@ -93,7 +93,7 @@ export default function CVTemplate() {
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       console.error(err);
-      alert('No se pudo copiar el prompt.');
+      alert('Could not copy the prompt.');
     }
   };
 
@@ -105,7 +105,7 @@ export default function CVTemplate() {
       setSavedUrl(value);
     } catch (err) {
       console.error(err);
-      alert('No se pudo guardar el link.');
+      alert('Could not save the link.');
     } finally {
       setSavingCv(false);
     }
@@ -118,44 +118,44 @@ export default function CVTemplate() {
       setTimeout(() => setLinkCopied(false), 2000);
     } catch (err) {
       console.error(err);
-      alert('No se pudo copiar el link.');
+      alert('Could not copy the link.');
     }
   };
 
   const steps = [
-    { icon: Download, label: 'Descarga la plantilla' },
-    { icon: Copy, label: 'Copia el prompt' },
-    { icon: Sparkles, label: 'Pégalo en tu IA' },
+    { icon: Download, label: 'Download the template' },
+    { icon: Copy, label: 'Copy the prompt' },
+    { icon: Sparkles, label: 'Paste it into your AI' },
   ];
 
   const driveBanner: Record<DriveStatus, { text: string; className: string }> = {
     ok: {
-      text: '¡Listo! Guardamos una copia de la plantilla en tu Google Drive.',
+      text: 'Done! We saved a copy of the template to your Google Drive.',
       className: 'bg-green-50 dark:bg-green-500/10 border-green-200 dark:border-green-500/30 text-green-700 dark:text-green-300',
     },
     error: {
-      text: 'No pudimos guardar la plantilla en tu Drive. Intenta de nuevo.',
+      text: 'We could not save the template to your Drive. Please try again.',
       className: 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/30 text-red-700 dark:text-red-300',
     },
     auth: {
-      text: 'Inicia sesión para guardar la plantilla en tu Drive.',
+      text: 'Sign in to save the template to your Drive.',
       className: 'bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30 text-amber-700 dark:text-amber-300',
     },
   };
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
-      {/* Encabezado */}
+      {/* Header */}
       <div>
         <h2 className="text-2xl font-bold leading-7 text-gray-900 dark:text-zinc-100 sm:text-3xl sm:tracking-tight">
-          Plantilla CV
+          CV Template
         </h2>
         <p className="mt-2 text-sm text-gray-600 dark:text-zinc-400">
-          Usa esta plantilla como referencia y copia el prompt para que una IA mejore tu CV siguiendo su estructura.
+          Use this template as a reference and copy the prompt so an AI can improve your CV following its structure.
         </p>
       </div>
 
-      {/* Banner del resultado de "Guardar en mi Drive" */}
+      {/* Banner for the result of "Save to my Drive" */}
       {driveStatus && (
         <div className={`flex items-center gap-3 rounded-lg border px-4 py-3 text-sm ${driveBanner[driveStatus].className}`}>
           <p className="flex-1">{driveBanner[driveStatus].text}</p>
@@ -167,16 +167,16 @@ export default function CVTemplate() {
               className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-md border border-black/10 dark:border-white/20 px-3 py-1.5 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
             >
               <ExternalLink className="h-4 w-4" />
-              Ver en Drive
+              View in Drive
             </a>
           )}
-          <button type="button" onClick={() => setDriveStatus(null)} aria-label="Cerrar" className="flex-shrink-0 opacity-70 hover:opacity-100">
+          <button type="button" onClick={() => setDriveStatus(null)} aria-label="Close" className="flex-shrink-0 opacity-70 hover:opacity-100">
             <X className="h-4 w-4" />
           </button>
         </div>
       )}
 
-      {/* Guía de 3 pasos */}
+      {/* 3-step guide */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {steps.map((step, i) => {
           const Icon = step.icon;
@@ -197,12 +197,12 @@ export default function CVTemplate() {
         })}
       </div>
 
-      {/* Plantilla — como hoja de papel */}
+      {/* Template — as a sheet of paper */}
       <div className="flex flex-col items-center gap-4">
         <div className="w-full max-w-2xl">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-zinc-400">
-              Plantilla de referencia
+              Reference template
             </h3>
             <div className="flex flex-wrap items-center gap-2">
               <a
@@ -210,7 +210,7 @@ export default function CVTemplate() {
                 className="inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 transition-colors"
               >
                 <HardDriveUpload className="h-4 w-4" />
-                {driveFileUrl ? 'Guardar de nuevo' : 'Guardar en mi Drive'}
+                {driveFileUrl ? 'Save again' : 'Save to my Drive'}
               </a>
 
               {driveFileUrl ? (
@@ -221,32 +221,32 @@ export default function CVTemplate() {
                   className="inline-flex items-center gap-1.5 rounded-md border border-indigo-300 dark:border-indigo-500/40 px-3 py-1.5 text-sm font-medium text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-colors"
                 >
                   <ExternalLink className="h-4 w-4" />
-                  Ver en Drive
+                  View in Drive
                 </a>
               ) : (
                 <button
                   type="button"
                   disabled
-                  title="Primero guarda la plantilla en tu Drive"
+                  title="First save the template to your Drive"
                   className="inline-flex items-center gap-1.5 rounded-md border border-gray-200 dark:border-white/10 px-3 py-1.5 text-sm font-medium text-gray-400 dark:text-zinc-600 cursor-not-allowed"
                 >
                   <ExternalLink className="h-4 w-4" />
-                  Ver en Drive
+                  View in Drive
                 </button>
               )}
             </div>
           </div>
 
-          {/* Estado de la copia en Drive */}
+          {/* Drive copy status */}
           <p className="mt-2 text-xs">
             {driveFileUrl ? (
               <span className="inline-flex items-center gap-1 text-green-600 dark:text-green-400">
                 <Check className="h-3.5 w-3.5" />
-                Ya tienes una copia guardada en tu Drive.
+                You already have a copy saved in your Drive.
               </span>
             ) : (
               <span className="text-gray-400 dark:text-zinc-500">
-                Aún no has guardado la plantilla en tu Drive.
+                You haven't saved the template to your Drive yet.
               </span>
             )}
           </p>
@@ -255,18 +255,18 @@ export default function CVTemplate() {
         <div className="w-full max-w-2xl overflow-hidden rounded-lg bg-white ring-1 ring-black/5 shadow-2xl">
           <img
             src={IMAGE_URL}
-            alt="Plantilla de CV"
+            alt="CV template"
             className="block h-auto w-full"
           />
         </div>
       </div>
 
-      {/* Prompt — tarjeta pulida */}
+      {/* Prompt — polished card */}
       <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[#16161a] shadow-sm">
         <div className="flex items-center justify-between border-b border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.03] px-4 py-3 sm:px-5">
           <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-zinc-100">
             <Sparkles className="h-4 w-4 text-indigo-500" />
-            Prompt personalizado
+            Custom prompt
           </h3>
           <button
             type="button"
@@ -281,19 +281,19 @@ export default function CVTemplate() {
             {copied ? (
               <>
                 <Check className="h-4 w-4" />
-                ¡Copiado!
+                Copied!
               </>
             ) : (
               <>
                 <Copy className="h-4 w-4" />
-                Copiar prompt
+                Copy prompt
               </>
             )}
           </button>
         </div>
         <div className="px-4 py-4 sm:px-5">
           <p className="mb-3 text-xs text-gray-500 dark:text-zinc-500">
-            Ya viene pre-rellenado con los datos de tu perfil. Cópialo, pégalo en ChatGPT o Claude y adjunta la plantilla de arriba.
+            It comes pre-filled with your profile data. Copy it, paste it into ChatGPT or Claude, and attach the template above.
           </p>
           <pre className="max-h-96 overflow-y-auto whitespace-pre-wrap break-words rounded-lg bg-gray-50 dark:bg-[#0b0b0e] p-4 text-[13px] leading-relaxed text-gray-700 dark:text-zinc-300 font-sans">
             {prompt}
@@ -301,17 +301,17 @@ export default function CVTemplate() {
         </div>
       </div>
 
-      {/* Mi CV — link de la copia editada del usuario */}
+      {/* My CV — link to the user's edited copy */}
       <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[#16161a] shadow-sm">
         <div className="flex items-center gap-2 border-b border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.03] px-4 py-3 sm:px-5">
           <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-zinc-100">
             <Link2 className="h-4 w-4 text-indigo-500" />
-            Mi CV
+            My CV
           </h3>
         </div>
         <div className="px-4 py-4 sm:px-5">
           <p className="mb-3 text-xs text-gray-500 dark:text-zinc-500">
-            Guarda aquí el link de tu copia ya editada (Google Drive, Docs, etc.). Queda a la mano para copiarlo cuando lo necesites.
+            Save the link to your edited copy here (Google Drive, Docs, etc.). It stays handy to copy whenever you need it.
           </p>
 
           <div className="flex flex-col gap-2 sm:flex-row">
@@ -328,7 +328,7 @@ export default function CVTemplate() {
               disabled={savingCv || cvUrl.trim() === savedUrl}
               className="inline-flex items-center justify-center gap-1.5 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {savingCv ? 'Guardando…' : 'Guardar'}
+              {savingCv ? 'Saving…' : 'Save'}
             </button>
           </div>
 
@@ -355,13 +355,13 @@ export default function CVTemplate() {
                 }
               >
                 {linkCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                {linkCopied ? 'Copiado' : 'Copiar'}
+                {linkCopied ? 'Copied' : 'Copy'}
               </button>
               <a
                 href={savedUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                aria-label="Abrir"
+                aria-label="Open"
                 className="inline-flex items-center rounded-md border border-gray-300 dark:border-white/15 px-2 py-1 text-gray-600 dark:text-zinc-300 hover:bg-gray-100 dark:hover:bg-white/[0.08] transition-colors"
               >
                 <ExternalLink className="h-3.5 w-3.5" />

@@ -83,7 +83,7 @@ function TagList({ label, items, max = 4 }: { label: string; items: string[] | u
           </span>
         ))}
         {extra > 0 && (
-          <span className="text-xs bg-gray-100 dark:bg-white/[0.06] text-gray-500 dark:text-zinc-400 px-2 py-0.5 rounded-full">+{extra} más</span>
+          <span className="text-xs bg-gray-100 dark:bg-white/[0.06] text-gray-500 dark:text-zinc-400 px-2 py-0.5 rounded-full">+{extra} more</span>
         )}
       </div>
     </div>
@@ -168,18 +168,18 @@ export default function Admin() {
 
   return (
     <div className="max-w-5xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-zinc-100 mb-6">Administración de usuarios</h1>
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-zinc-100 mb-6">User Administration</h1>
 
       <form onSubmit={handleSearch} className="mb-4 flex gap-2">
         <input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Buscar por nombre o correo..."
+          placeholder="Search by name or email..."
           className="flex-1 border border-gray-300 dark:border-white/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
         />
         <button type="submit" className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700">
-          Buscar
+          Search
         </button>
       </form>
 
@@ -187,18 +187,18 @@ export default function Admin() {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 dark:bg-white/[0.04] text-left text-gray-500 dark:text-zinc-400">
             <tr>
-              <th className="px-4 py-2 font-medium">Usuario</th>
+              <th className="px-4 py-2 font-medium">User</th>
               <th className="px-4 py-2 font-medium">Email</th>
-              <th className="px-4 py-2 font-medium">Rol</th>
-              <th className="px-4 py-2 font-medium">Creado</th>
+              <th className="px-4 py-2 font-medium">Role</th>
+              <th className="px-4 py-2 font-medium">Created</th>
               <th className="px-4 py-2 font-medium"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-white/[0.07]">
             {loading ? (
-              <tr><td colSpan={5} className="px-4 py-6 text-center text-gray-400 dark:text-zinc-500">Cargando...</td></tr>
+              <tr><td colSpan={5} className="px-4 py-6 text-center text-gray-400 dark:text-zinc-500">Loading...</td></tr>
             ) : users.length === 0 ? (
-              <tr><td colSpan={5} className="px-4 py-6 text-center text-gray-400 dark:text-zinc-500">Sin resultados</td></tr>
+              <tr><td colSpan={5} className="px-4 py-6 text-center text-gray-400 dark:text-zinc-500">No results</td></tr>
             ) : (
               users.map((u) => (
                 <tr key={u.id}>
@@ -212,14 +212,14 @@ export default function Admin() {
                   <td className="px-4 py-2 text-gray-500 dark:text-zinc-400">{new Date(u.createdAt).toLocaleDateString()}</td>
                   <td className="px-4 py-2 text-right space-x-2">
                     <button onClick={() => handleViewProfile(u.id)} className="text-indigo-600 dark:text-indigo-400 hover:underline text-xs font-medium">
-                      Ver perfil
+                      View profile
                     </button>
                     <button
                       onClick={() => handleImpersonate(u.id)}
                       disabled={impersonatingId === u.id}
                       className="text-amber-600 dark:text-amber-400 hover:underline text-xs font-medium disabled:opacity-50"
                     >
-                      {impersonatingId === u.id ? 'Entrando...' : 'Impersonar'}
+                      {impersonatingId === u.id ? 'Entering...' : 'Impersonate'}
                     </button>
                   </td>
                 </tr>
@@ -232,7 +232,7 @@ export default function Admin() {
       {!loading && total > 0 && (
         <div className="flex items-center justify-between mt-3 text-sm text-gray-500 dark:text-zinc-400">
           <span>
-            Mostrando {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} de {total}
+            Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} of {total}
           </span>
           <div className="flex items-center gap-2">
             <button
@@ -240,15 +240,15 @@ export default function Admin() {
               disabled={page <= 1}
               className="px-3 py-1 rounded border border-gray-300 dark:border-white/15 disabled:opacity-40 hover:bg-gray-50 dark:hover:bg-white/[0.05]"
             >
-              Anterior
+              Previous
             </button>
-            <span>Página {page} de {totalPages}</span>
+            <span>Page {page} of {totalPages}</span>
             <button
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page >= totalPages}
               className="px-3 py-1 rounded border border-gray-300 dark:border-white/15 disabled:opacity-40 hover:bg-gray-50 dark:hover:bg-white/[0.05]"
             >
-              Siguiente
+              Next
             </button>
           </div>
         </div>
@@ -261,7 +261,7 @@ export default function Admin() {
             onClick={(e) => e.stopPropagation()}
           >
             {loadingProfile ? (
-              <div className="p-8 text-center text-gray-400 dark:text-zinc-500">Cargando perfil...</div>
+              <div className="p-8 text-center text-gray-400 dark:text-zinc-500">Loading profile...</div>
             ) : selectedUser && (() => {
               const apps = selectedUser.applications;
               const interviews = apps.filter((a) =>
@@ -297,67 +297,67 @@ export default function Admin() {
                   </div>
 
                   <div className="flex gap-3 mb-6">
-                    <StatCard label="Aplicaciones" value={apps.length} accent="text-gray-900 dark:text-zinc-100" />
-                    <StatCard label="Entrevistas" value={interviews} accent="text-amber-600 dark:text-amber-400" />
-                    <StatCard label="Ofertas" value={offers} accent="text-emerald-600 dark:text-emerald-400" />
+                    <StatCard label="Applications" value={apps.length} accent="text-gray-900 dark:text-zinc-100" />
+                    <StatCard label="Interviews" value={interviews} accent="text-amber-600 dark:text-amber-400" />
+                    <StatCard label="Offers" value={offers} accent="text-emerald-600 dark:text-emerald-400" />
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 mb-6">
                     <div>
-                      <h3 className="text-xs font-semibold uppercase text-gray-400 dark:text-zinc-500 mb-1">Cuenta</h3>
-                      <InfoRow label="Registrado" value={new Date(selectedUser.createdAt).toLocaleDateString()} />
-                      <InfoRow label="Teléfono" value={selectedUser.candidateProfile?.phone} />
+                      <h3 className="text-xs font-semibold uppercase text-gray-400 dark:text-zinc-500 mb-1">Account</h3>
+                      <InfoRow label="Registered" value={new Date(selectedUser.createdAt).toLocaleDateString()} />
+                      <InfoRow label="Phone" value={selectedUser.candidateProfile?.phone} />
                       <InfoRow
                         label="LinkedIn"
                         value={selectedUser.candidateProfile?.linkedInUrl ? (
-                          <a href={selectedUser.candidateProfile.linkedInUrl} target="_blank" rel="noreferrer" className="text-indigo-600 dark:text-indigo-400 hover:underline">Ver perfil</a>
+                          <a href={selectedUser.candidateProfile.linkedInUrl} target="_blank" rel="noreferrer" className="text-indigo-600 dark:text-indigo-400 hover:underline">View profile</a>
                         ) : null}
                       />
                       <InfoRow
                         label="GitHub"
                         value={selectedUser.candidateProfile?.githubUrl ? (
-                          <a href={selectedUser.candidateProfile.githubUrl} target="_blank" rel="noreferrer" className="text-indigo-600 dark:text-indigo-400 hover:underline">Ver perfil</a>
+                          <a href={selectedUser.candidateProfile.githubUrl} target="_blank" rel="noreferrer" className="text-indigo-600 dark:text-indigo-400 hover:underline">View profile</a>
                         ) : null}
                       />
                     </div>
 
                     <div>
-                      <h3 className="text-xs font-semibold uppercase text-gray-400 dark:text-zinc-500 mb-1">Búsqueda laboral</h3>
-                      <InfoRow label="Experiencia" value={selectedUser.candidateProfile?.yearsOfExperience != null ? `${selectedUser.candidateProfile.yearsOfExperience} años` : null} />
+                      <h3 className="text-xs font-semibold uppercase text-gray-400 dark:text-zinc-500 mb-1">Job search</h3>
+                      <InfoRow label="Experience" value={selectedUser.candidateProfile?.yearsOfExperience != null ? `${selectedUser.candidateProfile.yearsOfExperience} years` : null} />
                       <InfoRow label="Seniority" value={selectedUser.candidateProfile?.seniorityLevel} />
-                      <InfoRow label="Modalidad" value={selectedUser.candidateProfile?.preferredWorkMode} />
-                      <InfoRow label="Salario mínimo" value={selectedUser.candidateProfile?.minimumSalary ? `$${selectedUser.candidateProfile.minimumSalary.toLocaleString()}` : null} />
-                      <InfoRow label="Autorización" value={selectedUser.candidateProfile?.workAuthorization} />
+                      <InfoRow label="Work mode" value={selectedUser.candidateProfile?.preferredWorkMode} />
+                      <InfoRow label="Minimum salary" value={selectedUser.candidateProfile?.minimumSalary ? `$${selectedUser.candidateProfile.minimumSalary.toLocaleString()}` : null} />
+                      <InfoRow label="Authorization" value={selectedUser.candidateProfile?.workAuthorization} />
                     </div>
                   </div>
 
                   <div className="mb-6">
-                    <TagList label="Roles objetivo" items={selectedUser.candidateProfile?.targetRoles} />
-                    <TagList label="Skills principales" items={selectedUser.candidateProfile?.coreSkills} max={6} />
+                    <TagList label="Target roles" items={selectedUser.candidateProfile?.targetRoles} />
+                    <TagList label="Core skills" items={selectedUser.candidateProfile?.coreSkills} max={6} />
                   </div>
 
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="text-xs font-semibold uppercase text-gray-400 dark:text-zinc-500">
-                      Aplicaciones ({apps.length})
+                      Applications ({apps.length})
                     </h3>
                     {apps.length > 5 && (
                       <button onClick={() => setShowAllApps((v) => !v)} className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
-                        {showAllApps ? 'Ver menos' : `Ver todas (${apps.length})`}
+                        {showAllApps ? 'Show less' : `Show all (${apps.length})`}
                       </button>
                     )}
                   </div>
                   {apps.length === 0 ? (
-                    <p className="text-sm text-gray-400 dark:text-zinc-500 py-4">Sin aplicaciones registradas.</p>
+                    <p className="text-sm text-gray-400 dark:text-zinc-500 py-4">No applications recorded.</p>
                   ) : (
                     <div className="border border-gray-200 dark:border-white/10 rounded-lg overflow-hidden">
                       <table className="w-full text-xs">
                         <thead className="bg-gray-50 dark:bg-white/[0.04] text-left text-gray-500 dark:text-zinc-400">
                           <tr>
-                            <th className="px-3 py-2 font-medium">Empresa</th>
-                            <th className="px-3 py-2 font-medium">Puesto</th>
-                            <th className="px-3 py-2 font-medium">Estado</th>
+                            <th className="px-3 py-2 font-medium">Company</th>
+                            <th className="px-3 py-2 font-medium">Position</th>
+                            <th className="px-3 py-2 font-medium">Status</th>
                             <th className="px-3 py-2 font-medium">Match</th>
-                            <th className="px-3 py-2 font-medium">Fecha</th>
+                            <th className="px-3 py-2 font-medium">Date</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 dark:divide-white/[0.07]">

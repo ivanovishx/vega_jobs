@@ -53,7 +53,7 @@ function Layout({ children }: { children: React.ReactNode }) {
           <button
             type="button"
             onClick={() => !user && setAuthModalOpen(true)}
-            aria-label="Cuenta"
+            aria-label="Account"
             className="flex items-center justify-center"
           >
             {user ? (

@@ -24,7 +24,7 @@ export default function AuthModal({ onClose }: Props) {
           <button
             onClick={onClose}
             className="absolute top-4 right-4 text-indigo-200 hover:text-white transition-colors"
-            aria-label="Cerrar"
+            aria-label="Close"
           >
             <X className="h-5 w-5" />
           </button>
@@ -35,12 +35,12 @@ export default function AuthModal({ onClose }: Props) {
             <span className="text-white font-semibold">Vega</span>
           </div>
           <h2 className="text-xl font-bold text-white mt-3">
-            {tab === 'login' ? 'Bienvenido de vuelta' : 'Crea tu cuenta'}
+            {tab === 'login' ? 'Welcome back' : 'Create your account'}
           </h2>
           <p className="text-indigo-200 text-sm mt-1">
             {tab === 'login'
-              ? 'Ingresa para continuar con tu búsqueda'
-              : 'Regístrate gratis y empieza a organizar tu búsqueda'}
+              ? 'Sign in to continue your search'
+              : 'Sign up for free and start organizing your search'}
           </p>
         </div>
 
@@ -54,7 +54,7 @@ export default function AuthModal({ onClose }: Props) {
                 : 'text-gray-500 dark:text-zinc-400 hover:text-gray-700 dark:hover:text-zinc-200 bg-gray-50 dark:bg-white/[0.04]'
             }`}
           >
-            Iniciar sesión
+            Sign in
           </button>
           <button
             onClick={() => setTab('register')}
@@ -64,7 +64,7 @@ export default function AuthModal({ onClose }: Props) {
                 : 'text-gray-500 dark:text-zinc-400 hover:text-gray-700 dark:hover:text-zinc-200 bg-gray-50 dark:bg-white/[0.04]'
             }`}
           >
-            Crear cuenta
+            Create account
           </button>
         </div>
 
@@ -102,7 +102,7 @@ function LoginForm({ onClose, refreshUser, onSwitchTab }: {
       await refreshUser();
       onClose();
     } catch (err: any) {
-      setError(err.response?.data?.error ?? 'Ocurrió un error. Intenta de nuevo.');
+      setError(err.response?.data?.error ?? 'Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -113,25 +113,25 @@ function LoginForm({ onClose, refreshUser, onSwitchTab }: {
       <GoogleButton />
       <Divider />
       <form onSubmit={handleSubmit} className="space-y-4">
-        <Field icon={<Mail className="h-4 w-4" />} label="Correo electrónico">
+        <Field icon={<Mail className="h-4 w-4" />} label="Email">
           <input
             type="email"
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="tu@email.com"
+            placeholder="you@email.com"
             className="input-field"
           />
         </Field>
 
-        <Field icon={<Lock className="h-4 w-4" />} label="Contraseña">
+        <Field icon={<Lock className="h-4 w-4" />} label="Password">
           <div className="relative">
             <input
               type={showPassword ? 'text' : 'password'}
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Tu contraseña"
+              placeholder="Your password"
               className="input-field pr-10"
             />
             <button
@@ -147,14 +147,14 @@ function LoginForm({ onClose, refreshUser, onSwitchTab }: {
         {error && <ErrorMsg>{error}</ErrorMsg>}
 
         <button type="submit" disabled={loading} className="submit-btn">
-          {loading ? <Spinner /> : 'Iniciar sesión'}
+          {loading ? <Spinner /> : 'Sign in'}
         </button>
       </form>
 
       <p className="text-center text-sm text-gray-500 dark:text-zinc-400 mt-4">
-        ¿No tienes cuenta?{' '}
+        Don't have an account?{' '}
         <button onClick={onSwitchTab} className="text-indigo-600 dark:text-indigo-400 font-medium hover:underline">
-          Regístrate gratis
+          Sign up for free
         </button>
       </p>
     </>
@@ -184,11 +184,11 @@ function RegisterForm({ onClose, refreshUser, onSwitchTab }: {
     setError('');
 
     if (password !== confirmPassword) {
-      setError('Las contraseñas no coinciden');
+      setError('Passwords do not match');
       return;
     }
     if (password.length < 6) {
-      setError('La contraseña debe tener al menos 6 caracteres');
+      setError('Password must be at least 6 characters');
       return;
     }
 
@@ -203,7 +203,7 @@ function RegisterForm({ onClose, refreshUser, onSwitchTab }: {
       await refreshUser();
       onClose();
     } catch (err: any) {
-      setError(err.response?.data?.error ?? 'Ocurrió un error. Intenta de nuevo.');
+      setError(err.response?.data?.error ?? 'Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -218,40 +218,40 @@ function RegisterForm({ onClose, refreshUser, onSwitchTab }: {
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Name row */}
         <div className="grid grid-cols-2 gap-3">
-          <Field icon={<User className="h-4 w-4" />} label="Nombre">
+          <Field icon={<User className="h-4 w-4" />} label="First name">
             <input
               type="text"
               required
               value={firstName}
               onChange={(e) => setFirstName(e.target.value)}
-              placeholder="Juan"
+              placeholder="John"
               className="input-field"
             />
           </Field>
-          <Field label="Apellido">
+          <Field label="Last name">
             <input
               type="text"
               required
               value={lastName}
               onChange={(e) => setLastName(e.target.value)}
-              placeholder="Pérez"
+              placeholder="Doe"
               className="input-field"
             />
           </Field>
         </div>
 
-        <Field icon={<Mail className="h-4 w-4" />} label="Correo electrónico">
+        <Field icon={<Mail className="h-4 w-4" />} label="Email">
           <input
             type="email"
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="tu@email.com"
+            placeholder="you@email.com"
             className="input-field"
           />
         </Field>
 
-        <Field icon={<Phone className="h-4 w-4" />} label="Teléfono (opcional)">
+        <Field icon={<Phone className="h-4 w-4" />} label="Phone (optional)">
           <input
             type="tel"
             value={phone}
@@ -261,14 +261,14 @@ function RegisterForm({ onClose, refreshUser, onSwitchTab }: {
           />
         </Field>
 
-        <Field icon={<Lock className="h-4 w-4" />} label="Contraseña">
+        <Field icon={<Lock className="h-4 w-4" />} label="Password">
           <div className="relative">
             <input
               type={showPassword ? 'text' : 'password'}
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Mínimo 6 caracteres"
+              placeholder="At least 6 characters"
               className="input-field pr-10"
             />
             <button
@@ -298,14 +298,14 @@ function RegisterForm({ onClose, refreshUser, onSwitchTab }: {
           )}
         </Field>
 
-        <Field icon={<Lock className="h-4 w-4" />} label="Confirmar contraseña">
+        <Field icon={<Lock className="h-4 w-4" />} label="Confirm password">
           <div className="relative">
             <input
               type={showConfirm ? 'text' : 'password'}
               required
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Repite tu contraseña"
+              placeholder="Repeat your password"
               className={`input-field pr-10 ${
                 confirmPassword && confirmPassword !== password
                   ? 'border-red-300 dark:border-red-500/40 focus:ring-red-400'
@@ -325,18 +325,18 @@ function RegisterForm({ onClose, refreshUser, onSwitchTab }: {
         {error && <ErrorMsg>{error}</ErrorMsg>}
 
         <button type="submit" disabled={loading} className="submit-btn">
-          {loading ? <Spinner /> : 'Crear cuenta'}
+          {loading ? <Spinner /> : 'Create account'}
         </button>
 
         <p className="text-xs text-gray-400 dark:text-zinc-500 text-center">
-          Al registrarte aceptas nuestros términos de uso y política de privacidad.
+          By signing up you accept our terms of use and privacy policy.
         </p>
       </form>
 
       <p className="text-center text-sm text-gray-500 dark:text-zinc-400 mt-4">
-        ¿Ya tienes cuenta?{' '}
+        Already have an account?{' '}
         <button onClick={onSwitchTab} className="text-indigo-600 dark:text-indigo-400 font-medium hover:underline">
-          Inicia sesión
+          Sign in
         </button>
       </p>
     </>
@@ -352,7 +352,7 @@ function GoogleButton() {
       className="flex items-center justify-center gap-3 w-full border border-gray-300 dark:border-white/15 rounded-xl px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-zinc-300 hover:bg-gray-50 dark:hover:bg-white/[0.05] transition-colors"
     >
       <GoogleIcon />
-      Continuar con Google
+      Continue with Google
     </a>
   );
 }
@@ -361,7 +361,7 @@ function Divider() {
   return (
     <div className="flex items-center gap-3 my-4">
       <div className="flex-1 h-px bg-gray-200 dark:bg-white/[0.09]" />
-      <span className="text-xs text-gray-400 dark:text-zinc-500 font-medium">o con tu correo</span>
+      <span className="text-xs text-gray-400 dark:text-zinc-500 font-medium">or with your email</span>
       <div className="flex-1 h-px bg-gray-200 dark:bg-white/[0.09]" />
     </div>
   );
@@ -392,7 +392,7 @@ function Spinner() {
   return (
     <span className="flex items-center justify-center gap-2">
       <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-      Cargando...
+      Loading...
     </span>
   );
 }
@@ -406,11 +406,11 @@ function getPasswordStrength(password: string): { score: number; label: string; 
   if (/[^A-Za-z0-9]/.test(password)) score++;
 
   const levels = [
-    { label: 'Muy débil', color: 'bg-red-400' },
-    { label: 'Débil', color: 'bg-orange-400' },
-    { label: 'Regular', color: 'bg-yellow-400' },
-    { label: 'Fuerte', color: 'bg-green-400' },
-    { label: 'Muy fuerte', color: 'bg-emerald-500' },
+    { label: 'Very weak', color: 'bg-red-400' },
+    { label: 'Weak', color: 'bg-orange-400' },
+    { label: 'Fair', color: 'bg-yellow-400' },
+    { label: 'Strong', color: 'bg-green-400' },
+    { label: 'Very strong', color: 'bg-emerald-500' },
   ];
   return { score, ...levels[score] };
 }
