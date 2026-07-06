@@ -62,6 +62,8 @@ model CandidateProfile {
   portfolioUrl      String?
   resumeText        String?  @db.Text
   resumeKeywords    String[] @default([])
+  cvCopyUrl         String?
+  cvDriveFileUrl    String?
   gender            String?
   race              String?
   veteranStatus     String?
