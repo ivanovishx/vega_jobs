@@ -1,6 +1,8 @@
 import { Router, Request, Response } from 'express';
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
+import { google } from 'googleapis';
+import { Readable } from 'stream';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import { prisma } from '../../db/prisma';
@@ -10,6 +12,20 @@ const router = Router();
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3001';
 const JWT_SECRET = process.env.JWT_SECRET!;
+
+// CV template stored on Google Drive (shared "anyone with the link"). Used by the
+// "save to my Drive" flow to copy the file into the signed-in user's own Drive.
+const CV_TEMPLATE_FILE_ID = process.env.CV_TEMPLATE_FILE_ID || '1wN_z6DRva3dIArIUnWscnF9P7eiQJBZ9';
+const CV_TEMPLATE_DOWNLOAD_URL = `https://drive.google.com/uc?export=download&id=${CV_TEMPLATE_FILE_ID}`;
+const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+
+function driveOAuthClient() {
+  return new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET,
+    `${BACKEND_URL}/auth/google/drive/callback`
+  );
+}
 
 function makeToken(userId: string) {
   return jwt.sign({ userId }, JWT_SECRET, { expiresIn: '30d' });
@@ -106,6 +122,82 @@ router.get(
       ]
     : [googleNotConfigured])
 );
+
+// ── Save CV template to the user's Google Drive ───────────────────────────────
+// Incremental Drive consent: the user grants `drive.file` once, we use the access
+// token immediately to copy the template into their Drive, and never store it.
+
+router.get('/google/drive', (req: Request, res: Response) => {
+  if (!googleConfigured) return googleNotConfigured(req, res);
+
+  const token = req.cookies?.token;
+  if (!token) return res.redirect(`${FRONTEND_URL}/cv-template?drive=auth`);
+
+  let userId: string;
+  try {
+    userId = (jwt.verify(token, JWT_SECRET) as { userId: string }).userId;
+  } catch {
+    return res.redirect(`${FRONTEND_URL}/cv-template?drive=auth`);
+  }
+
+  // Carry the user id through the round-trip in a short-lived signed state param.
+  const state = jwt.sign({ userId }, JWT_SECRET, { expiresIn: '10m' });
+  const url = driveOAuthClient().generateAuthUrl({
+    access_type: 'online',
+    scope: [DRIVE_SCOPE],
+    state,
+  });
+  res.redirect(url);
+});
+
+router.get('/google/drive/callback', async (req: Request, res: Response) => {
+  const backToCv = (status: string) => res.redirect(`${FRONTEND_URL}/cv-template?drive=${status}`);
+  if (!googleConfigured) return googleNotConfigured(req, res);
+
+  const { code, state } = req.query as { code?: string; state?: string };
+  if (!code || !state) return backToCv('error');
+
+  let userId: string;
+  try {
+    userId = (jwt.verify(state, JWT_SECRET) as { userId: string }).userId;
+  } catch {
+    return backToCv('error');
+  }
+
+  try {
+    const client = driveOAuthClient();
+    const { tokens } = await client.getToken(code);
+    client.setCredentials(tokens);
+
+    // Fetch the public template PDF server-side (no CORS), then upload a copy into
+    // the user's Drive. drive.file scope covers files the app creates.
+    const resp = await fetch(CV_TEMPLATE_DOWNLOAD_URL);
+    if (!resp.ok) return backToCv('error');
+    const buffer = Buffer.from(await resp.arrayBuffer());
+
+    const drive = google.drive({ version: 'v3', auth: client });
+    const file = await drive.files.create({
+      requestBody: { name: 'Plantilla CV - Vega.pdf', mimeType: 'application/pdf' },
+      media: { mimeType: 'application/pdf', body: Readable.from(buffer) },
+      fields: 'id, webViewLink',
+    });
+
+    // Persist the link to the Drive copy so "view in Drive" is always available
+    // later (latest save wins). Separate from cvCopyUrl (the user's edited copy).
+    const link = file.data.webViewLink;
+    if (link) {
+      await prisma.candidateProfile.updateMany({ where: { userId }, data: { cvDriveFileUrl: link } });
+    }
+
+    // Pass the new file's link back so the UI can offer "open in Drive" directly.
+    return res.redirect(
+      `${FRONTEND_URL}/cv-template?drive=ok${link ? `&fileUrl=${encodeURIComponent(link)}` : ''}`
+    );
+  } catch (err) {
+    console.error('Drive save error:', err);
+    return backToCv('error');
+  }
+});
 
 // ── Email / Password ──────────────────────────────────────────────────────────
 
