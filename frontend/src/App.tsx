@@ -18,6 +18,7 @@ import SavedJobs from './pages/SavedJobs';
 import ApplicationDetail from './pages/ApplicationDetail';
 import Jobs from './pages/Jobs';
 import Companies from './pages/Companies';
+import NewsCompanies from './pages/NewsCompanies';
 import Admin from './pages/Admin';
 
 function Layout({ children }: { children: React.ReactNode }) {
@@ -107,6 +108,7 @@ function AppRoutes() {
               <Route path="/cv-template" element={<ProtectedRoute><CVTemplate /></ProtectedRoute>} />
               <Route path="/jobs" element={<ProtectedRoute><Jobs /></ProtectedRoute>} />
               <Route path="/companies" element={<ProtectedRoute><Companies /></ProtectedRoute>} />
+              <Route path="/news-companies" element={<ProtectedRoute><NewsCompanies /></ProtectedRoute>} />
               <Route path="/admin" element={<ProtectedRoute requireRole="ADMIN"><Admin /></ProtectedRoute>} />
             </Routes>
           </Layout>
