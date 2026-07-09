@@ -114,6 +114,17 @@ export const fetchCompanies = async (params?: {
   return res.data;
 };
 
+export const fetchNewsCompanies = async (params?: {
+  search?: string;
+  page?: number;
+  limit?: number;
+  sortBy?: string;
+  sortDir?: string;
+}) => {
+  const res = await api.get('news-companies', { params });
+  return res.data;
+};
+
 export const fetchAdminUsers = async (params?: { search?: string; page?: number; limit?: number }) => {
   const res = await api.get('admin/users', { params });
   return res.data;
