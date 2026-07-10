@@ -36,11 +36,26 @@ router.get('/', async (req, res) => {
     const where = search ? `WHERE "identifier" ILIKE $1` : '';
     const pIdx = searchParams.length + 1;
 
-    const [countRows, companies] = await Promise.all([
-      prisma.$queryRawUnsafe<[{ count: bigint }]>(
-        `SELECT COUNT(*) as count FROM "CrunchbaseCompany" ${where}`,
-        ...searchParams
-      ),
+    // CrunchbaseCompany has ~1.8M rows. An exact COUNT(*) over the whole table
+    // takes ~55s on every load, so when there is no search filter we use the
+    // planner's row estimate (reltuples), which is effectively instant and
+    // accurate enough for a directory total. A filtered search still needs an
+    // exact count, but the trigram index on "identifier" keeps that fast.
+    const countPromise = search
+      ? prisma
+          .$queryRawUnsafe<[{ count: bigint }]>(
+            `SELECT COUNT(*) as count FROM "CrunchbaseCompany" ${where}`,
+            ...searchParams
+          )
+          .then((rows) => Number(rows[0].count))
+      : prisma
+          .$queryRawUnsafe<[{ estimate: number }]>(
+            `SELECT reltuples::bigint AS estimate FROM pg_class WHERE relname = 'CrunchbaseCompany'`
+          )
+          .then((rows) => Number(rows[0]?.estimate ?? 0));
+
+    const [total, companies] = await Promise.all([
+      countPromise,
       prisma.$queryRawUnsafe<{ id: string; name: string | null; rank: number | null; website: string | null; description1: string | null; crunchbaseLink: string | null; linkCareers1: string | null; linkCareers2: string | null }[]>(
         `SELECT
            "uuid" AS id,
@@ -65,7 +80,7 @@ router.get('/', async (req, res) => {
 
     res.json({
       companies,
-      total: Number(countRows[0].count),
+      total,
       page: pageNum,
       limit: limitNum,
     });
