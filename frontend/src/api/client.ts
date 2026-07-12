@@ -126,6 +126,7 @@ export const fetchNewsCompanies = async (params?: {
   fundedWithinDays?: string;
   minFunding?: string;
   maxFunding?: string;
+  favorites?: string;
   page?: number;
   limit?: number;
   sortBy?: string;
@@ -137,6 +138,11 @@ export const fetchNewsCompanies = async (params?: {
 
 export const fetchNewsCompanyFacets = async () => {
   const res = await api.get('news-companies/facets');
+  return res.data;
+};
+
+export const toggleNewsCompanyFavorite = async (id: string, favorite: boolean) => {
+  const res = await api.post(`news-companies/${id}/favorite`, { favorite });
   return res.data;
 };
 

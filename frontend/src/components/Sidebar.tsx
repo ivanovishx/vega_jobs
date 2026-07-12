@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Home, Briefcase, FileSearch, User, Bookmark, X, LogOut, ListChecks, ShieldCheck, Building2, Newspaper, FileText } from 'lucide-react';
+import { Home, Briefcase, FileSearch, User, Bookmark, X, LogOut, ListChecks, ShieldCheck, Building2, FileText } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../context/AuthContext';
 import ThemeToggle from './ThemeToggle';
@@ -20,8 +20,7 @@ export default function Sidebar({ isOpen, onClose, onOpenAuth }: SidebarProps) {
     { name: 'Positions to Apply', path: '/saved-jobs', icon: Bookmark },
     { name: 'Job Analyzer', path: '/analyzer', icon: FileSearch },
     { name: 'Jobs', path: '/jobs', icon: ListChecks },
-    { name: 'Companies', path: '/companies', icon: Building2 },
-    { name: 'News Companies', path: '/news-companies', icon: Newspaper },
+    { name: 'Companies', path: '/news-companies', icon: Building2 },
     { name: 'CV Template', path: '/cv-template', icon: FileText },
     { name: 'Profile', path: '/profile', icon: User },
     ...(user?.role === 'ADMIN' ? [{ name: 'Admin', path: '/admin', icon: ShieldCheck }] : []),
