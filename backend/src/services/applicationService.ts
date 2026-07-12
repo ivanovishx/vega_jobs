@@ -80,7 +80,9 @@ export const applicationService = {
         nextActionDueDate: app.nextActionDueDate?.toISOString(),
         jobUrl: app.job.url || undefined,
         location: app.job.location || undefined,
-        salaryRange: app.job.salaryRange || undefined
+        salaryRange: app.job.salaryRange || undefined,
+        dateApplied: app.dateApplied?.toISOString(),
+        createdAt: app.createdAt.toISOString()
       }))
     };
   },
