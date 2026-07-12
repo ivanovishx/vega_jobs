@@ -475,7 +475,6 @@ export default function NewsCompanies() {
   const colHeaders: { key: SortCol | null; label: string }[] = [
     { key: 'rank', label: 'Rank' },
     { key: 'name', label: 'Company' },
-    { key: 'website', label: 'Website' },
     { key: null, label: 'Description' },
     { key: null, label: 'Location' },
     { key: 'founded', label: 'Founded' },
@@ -677,7 +676,7 @@ export default function NewsCompanies() {
               {loading ? (
                 Array.from({ length: 8 }).map((_, i) => (
                   <tr key={i} className="border-b border-gray-50 dark:border-white/5">
-                    {Array.from({ length: 8 }).map((_, j) => (
+                    {Array.from({ length: colHeaders.length }).map((_, j) => (
                       <td key={j} className="px-4 py-3">
                         <div className="h-4 bg-gray-100 dark:bg-white/[0.06] rounded animate-pulse" style={{ width: `${40 + (j * 12) % 45}%` }} />
                       </td>
@@ -686,7 +685,7 @@ export default function NewsCompanies() {
                 ))
               ) : companies.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-16 text-center text-gray-400 dark:text-zinc-500 text-sm">
+                  <td colSpan={colHeaders.length} className="px-4 py-16 text-center text-gray-400 dark:text-zinc-500 text-sm">
                     No companies match your filters.
                   </td>
                 </tr>
@@ -701,12 +700,12 @@ export default function NewsCompanies() {
                       {c.rank ?? '—'}
                     </td>
 
-                    {/* Company name → crunchbaseLink, with categories underneath */}
+                    {/* Company: name linked to the website, URL + categories underneath */}
                     <td className="px-4 py-3 font-medium text-gray-900 dark:text-zinc-100 whitespace-nowrap">
                       <div className="flex items-center gap-1.5">
-                        {c.crunchbaseLink ? (
+                        {c.website ? (
                           <a
-                            href={normalizeUrl(c.crunchbaseLink)}
+                            href={normalizeUrl(c.website)}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
@@ -720,28 +719,22 @@ export default function NewsCompanies() {
                           <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400">Closed</span>
                         )}
                       </div>
-                      {c.categoryGroups && (
-                        <div className="text-[11px] font-normal text-gray-400 dark:text-zinc-500 truncate max-w-[220px]">
-                          {c.categoryGroups.split(', ').slice(0, 2).join(' · ')}
-                        </div>
-                      )}
-                    </td>
-
-                    {/* Website — show URL */}
-                    <td className="px-4 py-3 max-w-[180px]">
-                      {c.website ? (
+                      {c.website && (
                         <a
                           href={normalizeUrl(c.website)}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors text-xs truncate max-w-full"
+                          className="inline-flex items-center gap-1 font-normal text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors text-xs truncate max-w-[220px]"
                           title={c.website}
                         >
                           <ExternalLink className="h-3 w-3 shrink-0" />
                           <span className="truncate">{displayUrl(c.website)}</span>
                         </a>
-                      ) : (
-                        <span className="text-gray-300 dark:text-zinc-600">—</span>
+                      )}
+                      {c.categoryGroups && (
+                        <div className="text-[11px] font-normal text-gray-400 dark:text-zinc-500 truncate max-w-[220px]">
+                          {c.categoryGroups.split(', ').slice(0, 2).join(' · ')}
+                        </div>
                       )}
                     </td>
 

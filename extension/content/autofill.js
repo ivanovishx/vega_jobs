@@ -290,8 +290,13 @@ window.runVegaAutofill = function(profile) {
       let current = el.parentElement;
       let depth = 0;
       while (current && depth < 3) {
-        if (current.textContent) {
-          push(current.textContent);
+        // Compact ATS layouts (e.g. Ashby) reach the whole-form container
+        // within 3 levels; taking its text would leak every question on the
+        // page into this field's signature (a "LinkedIn" question elsewhere
+        // then outscores "name" for the name field). Only label-sized text.
+        const parentText = (current.textContent || '').trim();
+        if (parentText && parentText.length <= 200) {
+          push(parentText);
         }
         push(current.getAttribute('data-qa'));
         push(current.getAttribute('data-testid'));
@@ -571,6 +576,10 @@ window.runVegaAutofill = function(profile) {
     if (!buildProfilePatch(fieldKey, 'x')) return; // not a syncable field
     input.__vegaStdListener = true;
     input.__vegaStdLast = (input.value || '').trim();
+    // Only real keystrokes are trusted events — synthetic fills (ours or the
+    // ATS's resume parse) are not. Lets the late-parse guard tell "the user
+    // typed here, leave it alone" apart from "the page overwrote our fill".
+    input.addEventListener('input', (e) => { if (e.isTrusted) input.__vegaUserEdited = true; }, true);
     const handler = () => {
       const value = (input.value || '').trim();
       if (!value || value === input.__vegaStdLast) return;
@@ -589,7 +598,15 @@ window.runVegaAutofill = function(profile) {
     input.addEventListener('blur', handler);
   };
 
-  const fillTextAndFormFields = () => {
+  // Standard fields we set from the profile, watched by the late-parse guard so
+  // an ATS resume parse that lands after our fill can't silently undo it.
+  const standardFills = [];
+
+  const fillTextAndFormFields = (opts = {}) => {
+  // When a resume was just uploaded, the ATS may have pre-filled fields from
+  // its parse; the profile is the source of truth, so overwrite differing
+  // values (but never a field the user typed in themselves).
+  const overwriteStandard = !!opts.overwriteStandard;
   // 1. Fill text-shaped inputs and textareas (query including Shadow DOMs)
   const candidates = queryAllIncludingShadows('input, textarea');
   candidates.forEach(input => {
@@ -618,12 +635,20 @@ window.runVegaAutofill = function(profile) {
       attachStandardSync(input, bestKey);
       const valToSet = fieldMapping[bestKey];
       console.log(`Vega: Matched field "${bestKey}" with score ${bestScore} for input:`, input);
-      if (valToSet && (!input.value || input.value.trim() === '')) {
-        input.__vegaStdLast = (valToSet || '').trim(); // don't treat our own fill as a user edit
-        setNativeValue(input, valToSet);
+      const current = (input.value || '').trim();
+      const wanted = valToSet ? String(valToSet).trim() : '';
+      const canOverwrite = overwriteStandard && !input.__vegaUserEdited;
+      if (wanted && current === wanted) {
+        standardFills.push({ el: input, value: wanted }); // already correct — still guard it
+      } else if (wanted && (current === '' || canOverwrite)) {
+        input.__vegaStdLast = wanted; // don't treat our own fill as a user edit
+        setNativeValue(input, wanted);
+        standardFills.push({ el: input, value: wanted });
         filledCount++;
         highlight(input);
-        vegaLog(`✓ Filled field "${bestKey}" → "${trunc(valToSet)}"`);
+        vegaLog(current === ''
+          ? `✓ Filled field "${bestKey}" → "${trunc(wanted)}"`
+          : `↻ Replaced page value of "${bestKey}" with your profile's → "${trunc(wanted)}"`);
       } else if (!valToSet) {
         // The field was recognized but there's nothing to put in it — tell the
         // user so they know to fill it in their Vega profile (this is the usual
@@ -1371,16 +1396,96 @@ window.runVegaAutofill = function(profile) {
     }
   };
 
-  // 5. Resume upload — runs first; text fields are filled after Angular settles
+  const runAllFillPasses = (opts = {}) => {
+    fillTextAndFormFields(opts);
+    discoverAndLearnCustomFields();
+    discoverAndLearnCheckboxes();
+    showToast();
+  };
+
+  // Ashby, Greenhouse and similar ATSs parse an uploaded resume server-side
+  // and then re-render the form with values extracted from it — seconds after
+  // the upload. Filling on a fixed delay races that parse and loses. Instead,
+  // wait until the page goes quiet: no DOM mutations and no synthetic
+  // input/change events for `quiet` ms (after `minWait`, capped at `maxWait`).
+  const waitForFormSettle = (onSettled, { minWait = 4000, quiet = 2500, maxWait = 25000 } = {}) => {
+    const start = Date.now();
+    let lastActivity = Date.now();
+    let done = false;
+
+    const bump = () => { lastActivity = Date.now(); };
+    const observer = new MutationObserver(bump);
+    try {
+      observer.observe(document.body, { childList: true, subtree: true, attributes: true, characterData: true });
+    } catch (e) { /* body may be missing in exotic pages */ }
+    document.addEventListener('input', bump, true);
+    document.addEventListener('change', bump, true);
+
+    const finish = (reason) => {
+      if (done) return;
+      done = true;
+      try { observer.disconnect(); } catch (e) {}
+      document.removeEventListener('input', bump, true);
+      document.removeEventListener('change', bump, true);
+      console.log(`Vega: form settled (${reason}) after ${Date.now() - start}ms — filling now.`);
+      onSettled();
+    };
+
+    const tick = () => {
+      if (done) return;
+      const now = Date.now();
+      if (now - start >= maxWait) return finish('max wait reached');
+      if (now - start >= minWait && now - lastActivity >= quiet) return finish('page went quiet');
+      setTimeout(tick, 250);
+    };
+    setTimeout(tick, 250);
+  };
+
+  // Safety net for parses slower than the settle window: watch the standard
+  // fields we filled and, if the page overwrites one (values changed but not
+  // by a trusted user edit), put the profile value back — once per field. If a
+  // re-render replaced the nodes entirely, run one corrective fill pass.
+  const armLateParseGuard = (durationMs = 12000) => {
+    if (!standardFills.length) return;
+    const deadline = Date.now() + durationMs;
+    let refillDone = false;
+    const iv = setInterval(() => {
+      if (Date.now() > deadline) { clearInterval(iv); return; }
+      standardFills.forEach(f => {
+        const { el, value } = f;
+        if (f.restored || el.__vegaUserEdited) return;
+        if (document.activeElement === el) return;
+        try {
+          if (!el.isConnected) {
+            if (!refillDone) {
+              refillDone = true;
+              console.log('Vega: form re-rendered after fill — running a corrective pass.');
+              fillTextAndFormFields({ overwriteStandard: true });
+            }
+            f.restored = true; // node is gone; nothing more to watch here
+            return;
+          }
+          const cur = (el.value || '').trim();
+          if (cur !== value) {
+            f.restored = true;
+            el.__vegaStdLast = value;
+            setNativeValue(el, value);
+            highlight(el);
+            vegaLog(`↻ The page changed a field after autofill — restored your profile value "${trunc(value)}"`);
+          }
+        } catch (e) { /* ignore */ }
+      });
+    }, 500);
+  };
+
+  // 5. Resume upload — runs first; the profile fill waits for the ATS's
+  // resume-parse to finish so it isn't overwritten by it.
   if (chrome && chrome.storage && chrome.storage.local) {
     console.log("Vega: Retrieving resume from local storage...");
     chrome.storage.local.get(['resumeData', 'resumeFileName', 'resumeMime'], (result) => {
       if (!result.resumeData || !result.resumeFileName) {
         console.log("Vega: No resume found in storage. Filling text fields only.");
-        fillTextAndFormFields();
-        discoverAndLearnCustomFields();
-        discoverAndLearnCheckboxes();
-        showToast();
+        runAllFillPasses();
         return;
       }
       
@@ -1470,21 +1575,25 @@ window.runVegaAutofill = function(profile) {
         }
       }
 
-      // Fill text fields after Angular finishes re-rendering from the file upload.
-      // 1000ms covers even slow Angular change detection cycles.
-      setTimeout(() => {
-        fillTextAndFormFields();
-        discoverAndLearnCustomFields();
-        discoverAndLearnCheckboxes();
-        showToast();
-      }, 1000);
+      if (injected > 0) {
+        // The upload triggers the ATS's resume parse, which re-renders the
+        // form with parsed values. Wait for that to finish, then fill from the
+        // profile letting it overwrite parse results, and keep a guard armed
+        // in case an extra-slow parse lands even later.
+        vegaLog('⏳ Resume attached — waiting for the page to process it before filling your details…');
+        waitForFormSettle(() => {
+          runAllFillPasses({ overwriteStandard: true });
+          armLateParseGuard();
+        });
+      } else {
+        // Nothing was uploaded, so no parse is coming — fill after a short
+        // delay for any rendering triggered by the attempt.
+        setTimeout(() => runAllFillPasses(), 500);
+      }
     });
   } else {
     // No resume storage — fill text fields immediately
-    fillTextAndFormFields();
-    discoverAndLearnCustomFields();
-    discoverAndLearnCheckboxes();
-    showToast();
+    runAllFillPasses();
   }
 
   function showToast() {
