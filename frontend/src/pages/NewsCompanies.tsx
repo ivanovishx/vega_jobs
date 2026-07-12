@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { fetchNewsCompanies, fetchNewsCompanyFacets } from '../api/client';
+import { fetchNewsCompanies, fetchNewsCompanyFacets, toggleNewsCompanyFavorite } from '../api/client';
 import {
   Search, Building2, RefreshCw, ExternalLink,
-  ChevronUp, ChevronDown, ChevronsUpDown, X,
+  ChevronUp, ChevronDown, ChevronsUpDown, X, Star,
 } from 'lucide-react';
 
 interface CompanyRow {
@@ -22,6 +22,7 @@ interface CompanyRow {
   lastFundingType: string | null;
   categoryGroups: string | null;
   operatingStatus: string | null;
+  isFavorite?: boolean;
 }
 
 interface FacetOption { value: string; count: number }
@@ -290,6 +291,7 @@ export default function NewsCompanies() {
   const [cats, setCats] = useState<string[]>(init.cats ? init.cats.split(',') : []);
   const [statesSel, setStatesSel] = useState<string[]>(init.states ? init.states.split(',') : []);
   const [fundedWithin, setFundedWithin] = useState(init.fw ?? '');
+  const [favoritesOnly, setFavoritesOnly] = useState(init.favs === '1');
 
   const [page, setPage] = useState(parseInt(init.page) || 1);
   const [limit, setLimit] = useState(parseInt(init.limit) || 50);
@@ -360,12 +362,13 @@ export default function NewsCompanies() {
     if (fundedWithin) qp.fw = fundedWithin;
     if (applied.minFundingM) qp.minf = applied.minFundingM;
     if (applied.maxFundingM) qp.maxf = applied.maxFundingM;
+    if (favoritesOnly) qp.favs = '1';
     if (page !== 1) qp.page = String(page);
     if (limit !== 50) qp.limit = String(limit);
     if (sortBy !== 'rank') qp.sort = sortBy;
     if (sortDir !== 'asc') qp.dir = sortDir;
     setSearchParams(qp, { replace: true });
-  }, [applied, searchIn, status, stages, cats, statesSel, fundedWithin, page, limit, sortBy, sortDir, setSearchParams]);
+  }, [applied, searchIn, status, stages, cats, statesSel, fundedWithin, favoritesOnly, page, limit, sortBy, sortDir, setSearchParams]);
 
   const load = useCallback(async () => {
     if (!isFirstLoad.current) setFetching(true);
@@ -381,6 +384,7 @@ export default function NewsCompanies() {
       if (applied.foundedFrom) params.foundedFrom = applied.foundedFrom;
       if (applied.foundedTo) params.foundedTo = applied.foundedTo;
       if (fundedWithin) params.fundedWithinDays = fundedWithin;
+      if (favoritesOnly) params.favorites = '1';
       const minF = parseFloat(applied.minFundingM);
       if (!isNaN(minF)) params.minFunding = String(minF * 1e6);
       const maxF = parseFloat(applied.maxFundingM);
@@ -399,11 +403,19 @@ export default function NewsCompanies() {
       }
       setFetching(false);
     }
-  }, [applied, searchIn, status, stages, cats, statesSel, fundedWithin, page, limit, sortBy, sortDir]);
+  }, [applied, searchIn, status, stages, cats, statesSel, fundedWithin, favoritesOnly, page, limit, sortBy, sortDir]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  const toggleFavorite = (id: string, next: boolean) => {
+    setCompanies(cs => cs.map(c => c.id === id ? { ...c, isFavorite: next } : c));
+    toggleNewsCompanyFavorite(id, next).catch(() => {
+      // Roll back the optimistic update if the save failed.
+      setCompanies(cs => cs.map(c => c.id === id ? { ...c, isFavorite: !next } : c));
+    });
+  };
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -430,7 +442,7 @@ export default function NewsCompanies() {
     setMinFundingInput(''); setMaxFundingInput('');
     setApplied({ q: '', foundedFrom: '', foundedTo: '', minFundingM: '', maxFundingM: '' });
     setSearchIn('all'); setStatus('active'); setStages([]); setCats([]); setStatesSel([]);
-    setFundedWithin('');
+    setFundedWithin(''); setFavoritesOnly(false);
     setPage(1);
   };
 
@@ -456,6 +468,9 @@ export default function NewsCompanies() {
       onClear: () => resetPage(setFundedWithin)(''),
     });
   }
+  if (favoritesOnly) {
+    chips.push({ label: 'Favorites only', onClear: () => resetPage(setFavoritesOnly)(false) });
+  }
   if (applied.minFundingM || applied.maxFundingM) {
     chips.push({
       label: `Funding ${applied.minFundingM ? `$${applied.minFundingM}M` : '…'}–${applied.maxFundingM ? `$${applied.maxFundingM}M` : '…'}`,
@@ -473,6 +488,7 @@ export default function NewsCompanies() {
   }
 
   const colHeaders: { key: SortCol | null; label: string }[] = [
+    { key: null, label: '' }, // favorite star
     { key: 'rank', label: 'Rank' },
     { key: 'name', label: 'Company' },
     { key: null, label: 'Description' },
@@ -495,7 +511,7 @@ export default function NewsCompanies() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-zinc-100">News Companies</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-zinc-100">Companies</h1>
           <p className="text-sm text-gray-500 dark:text-zinc-400 mt-0.5">Crunchbase companies directory</p>
         </div>
         <div className="flex items-center gap-3 pt-1">
@@ -569,6 +585,18 @@ export default function NewsCompanies() {
               </button>
             ))}
           </div>
+          <button
+            type="button"
+            onClick={() => resetPage(setFavoritesOnly)(!favoritesOnly)}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border rounded-lg transition-colors ${
+              favoritesOnly
+                ? 'border-amber-300 dark:border-amber-500/40 text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10'
+                : 'border-gray-200 dark:border-white/10 text-gray-600 dark:text-zinc-400 hover:bg-gray-50 dark:hover:bg-white/[0.05]'
+            }`}
+          >
+            <Star className={`h-3.5 w-3.5 ${favoritesOnly ? 'fill-amber-400 text-amber-400' : ''}`} />
+            Favorites
+          </button>
         </div>
 
         {/* Row 2: filters */}
@@ -695,6 +723,23 @@ export default function NewsCompanies() {
                     key={c.id}
                     className={`border-b border-gray-50 dark:border-white/5 hover:bg-gray-50 dark:hover:bg-white/[0.05] transition-colors ${idx % 2 !== 0 ? 'bg-gray-50/40 dark:bg-white/[0.03]' : ''}`}
                   >
+                    {/* Favorite star */}
+                    <td className="pl-4 pr-1 py-3 w-8">
+                      <button
+                        type="button"
+                        onClick={() => toggleFavorite(c.id, !c.isFavorite)}
+                        aria-label={c.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+                        title={c.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+                        className="align-middle"
+                      >
+                        <Star className={`h-4 w-4 transition-colors ${
+                          c.isFavorite
+                            ? 'fill-amber-400 text-amber-400'
+                            : 'text-gray-300 dark:text-zinc-600 hover:text-amber-400 dark:hover:text-amber-400'
+                        }`} />
+                      </button>
+                    </td>
+
                     {/* Rank */}
                     <td className="px-4 py-3 text-gray-400 dark:text-zinc-500 font-mono text-xs tabular-nums w-14 shrink-0">
                       {c.rank ?? '—'}

@@ -105,8 +105,10 @@ window.runVegaAutofill = function(profile) {
   };
 
   const nameParts = (profile.user?.name || "").split(" ");
-  const firstName = nameParts[0] || "";
-  const lastName = nameParts.slice(1).join(" ") || "";
+  // Mutable: partial-field edits (first/last name, city/state/country) update
+  // these so later edits compose with the freshest values.
+  let firstName = nameParts[0] || "";
+  let lastName = nameParts.slice(1).join(" ") || "";
 
   let formattedPhone = profile.phone || "";
   if (formattedPhone && !formattedPhone.startsWith("+") && !formattedPhone.startsWith("1")) {
@@ -554,26 +556,39 @@ window.runVegaAutofill = function(profile) {
   // user types or changes one on the page, the new value is written back to
   // their Vega profile so it's remembered everywhere. Composite/partial fields
   // (first/last name, city/state/country) are skipped to avoid clobbering.
+  const SYNCABLE_KEYS = new Set([
+    'email', 'name', 'first_name', 'last_name', 'phone', 'linkedin', 'github',
+    'portfolio', 'website', 'location', 'salary', 'experience', 'city', 'state', 'country',
+  ]);
+
   const buildProfilePatch = (fieldKey, value) => {
     const v = (value || '').trim();
     if (!v) return null;
     switch (fieldKey) {
       case 'email':     return { user: { email: v } };
       case 'name':      return { user: { name: v } };
+      // Partial fields compose with the stored other half, and refresh it so a
+      // follow-up edit to the counterpart composes with this new value.
+      case 'first_name': firstName = v; return { user: { name: `${v} ${lastName}`.trim() } };
+      case 'last_name':  lastName = v;  return { user: { name: `${firstName} ${v}`.trim() } };
+      case 'city':    candidateCity = v;    return { targetLocations: [[v, candidateState, candidateCountry].filter(Boolean).join(', ')] };
+      case 'state':   candidateState = v;   return { targetLocations: [[candidateCity, v, candidateCountry].filter(Boolean).join(', ')] };
+      case 'country': candidateCountry = v; return { targetLocations: [[candidateCity, candidateState, v].filter(Boolean).join(', ')] };
       case 'phone':     return { phone: v };
       case 'linkedin':  return { linkedInUrl: v };
       case 'github':    return { githubUrl: v };
-      case 'portfolio': return { portfolioUrl: v };
+      case 'portfolio':
+      case 'website':   return { portfolioUrl: v };
       case 'location':  return { targetLocations: [v] };
       case 'salary':    { const n = parseInt(v.replace(/[^0-9]/g, ''), 10); return isNaN(n) ? null : { minimumSalary: n }; }
       case 'experience':{ const n = parseInt(v.replace(/[^0-9]/g, ''), 10); return isNaN(n) ? null : { yearsOfExperience: n }; }
-      default:          return null; // first_name/last_name/city/state/country — partial, skip
+      default:          return null;
     }
   };
 
   const attachStandardSync = (input, fieldKey) => {
     if (input.__vegaStdListener) return;
-    if (!buildProfilePatch(fieldKey, 'x')) return; // not a syncable field
+    if (!SYNCABLE_KEYS.has(fieldKey)) return; // not a syncable field
     input.__vegaStdListener = true;
     input.__vegaStdLast = (input.value || '').trim();
     // Only real keystrokes are trusted events — synthetic fills (ours or the
@@ -1040,6 +1055,64 @@ window.runVegaAutofill = function(profile) {
     return '';
   };
 
+  // element → learned checkbox/radio group, so the live recorder can find and
+  // force-save the group a just-clicked box belongs to.
+  const cbGroupByEl = new Map();
+  const radioGroupByEl = new Map();
+
+  // Watch a custom (learned) field: any committed value the user enters is
+  // saved to the backend so the next autofill can reuse it. Hoisted out of the
+  // discovery pass so the live recorder can hook fields discovered later.
+  const attachCustomFieldListener = (el, sig) => {
+    if (el.__vegaListenerAttached) return;
+    el.__vegaListenerAttached = true;
+
+    const sendSaveValue = (value) => {
+      if (value == null || value === '') return;
+      if (el.__vegaLastSaved === value) return; // avoid duplicate logs/saves
+      el.__vegaLastSaved = value;
+      let pageUrl = '';
+      try { pageUrl = location.href; } catch (e) {}
+      try {
+        chrome.runtime.sendMessage({
+          type: 'vegaSaveFieldValue',
+          field: { fieldKey: sig.fieldKey, label: sig.label, fieldType: sig.fieldType, options: sig.options, value, lastSeenUrl: pageUrl }
+        }, (resp) => {
+          if (chrome.runtime.lastError) return;
+          if (resp && resp.ok) {
+            if (resp.firstAnswer) {
+              // A brand-new field has just been recorded in the DB with your info.
+              vegaLog(`🆕 New field recorded in your profile/DB: "${trunc(sig.label)}" = "${trunc(value)}"`);
+              vegaNotify(`Saved a new answer to your Vega profile: "${trunc(sig.label)}"`);
+            } else {
+              vegaLog(`✎ Updated saved answer: "${trunc(sig.label)}" = "${trunc(value)}"`);
+            }
+          } else {
+            vegaLog(`⚠ Could not save "${trunc(sig.label)}": ${resp && resp.error ? resp.error : 'no response'}`);
+          }
+        });
+      } catch (e) { /* extension context may be gone */ }
+    };
+
+    const handler = () => {
+      const value = readFieldValue(el);
+      if ((value == null || value === '') && isComboboxEl(el)) {
+        // react-select clears the input after a pick and renders the chosen
+        // label elsewhere, updating asynchronously — read it shortly after.
+        setTimeout(() => { const v = readComboboxSelection(el); if (v) sendSaveValue(v); }, 350);
+        return;
+      }
+      sendSaveValue(value);
+    };
+    // `change` covers native <select> and inputs; `blur` and a delayed `input`
+    // re-read cover combobox widgets that commit a selection asynchronously.
+    el.addEventListener('change', handler);
+    el.addEventListener('blur', handler);
+    if (isComboboxEl(el)) {
+      el.addEventListener('input', () => setTimeout(handler, 350));
+    }
+  };
+
   const discoverAndLearnCustomFields = () => {
     let pageUrl = '';
     try { pageUrl = location.href; } catch (e) {}
@@ -1076,54 +1149,7 @@ window.runVegaAutofill = function(profile) {
     vegaLog(`🔍 Scanned page: ${discovered.length} custom question(s) found — checking your saved answers…`);
 
     // Attach listeners so user edits are remembered, regardless of backend state.
-    const attachListener = (el, sig) => {
-      if (el.__vegaListenerAttached) return;
-      el.__vegaListenerAttached = true;
-
-      const sendSaveValue = (value) => {
-        if (value == null || value === '') return;
-        if (el.__vegaLastSaved === value) return; // avoid duplicate logs/saves
-        el.__vegaLastSaved = value;
-        try {
-          chrome.runtime.sendMessage({
-            type: 'vegaSaveFieldValue',
-            field: { fieldKey: sig.fieldKey, label: sig.label, fieldType: sig.fieldType, options: sig.options, value, lastSeenUrl: pageUrl }
-          }, (resp) => {
-            if (chrome.runtime.lastError) return;
-            if (resp && resp.ok) {
-              if (resp.firstAnswer) {
-                // A brand-new field has just been recorded in the DB with your info.
-                vegaLog(`🆕 New field recorded in your profile/DB: "${trunc(sig.label)}" = "${trunc(value)}"`);
-                vegaNotify(`Saved a new answer to your Vega profile: "${trunc(sig.label)}"`);
-              } else {
-                vegaLog(`✎ Updated saved answer: "${trunc(sig.label)}" = "${trunc(value)}"`);
-              }
-            } else {
-              vegaLog(`⚠ Could not save "${trunc(sig.label)}": ${resp && resp.error ? resp.error : 'no response'}`);
-            }
-          });
-        } catch (e) { /* extension context may be gone */ }
-      };
-
-      const handler = () => {
-        const value = readFieldValue(el);
-        if ((value == null || value === '') && isComboboxEl(el)) {
-          // react-select clears the input after a pick and renders the chosen
-          // label elsewhere, updating asynchronously — read it shortly after.
-          setTimeout(() => { const v = readComboboxSelection(el); if (v) sendSaveValue(v); }, 350);
-          return;
-        }
-        sendSaveValue(value);
-      };
-      // `change` covers native <select> and inputs; `blur` and a delayed `input`
-      // re-read cover combobox widgets that commit a selection asynchronously.
-      el.addEventListener('change', handler);
-      el.addEventListener('blur', handler);
-      if (isComboboxEl(el)) {
-        el.addEventListener('input', () => setTimeout(handler, 350));
-      }
-    };
-    sigByElement.forEach((sig, el) => attachListener(el, sig));
+    sigByElement.forEach((sig, el) => attachCustomFieldListener(el, sig));
 
     // Sync with backend: record new fields, retrieve saved answers.
     try {
@@ -1340,7 +1366,9 @@ window.runVegaAutofill = function(profile) {
     // Remember edits to any checkbox in the group.
     groups.forEach(grp => {
       grp.__lastSaved = currentSelection(grp);
+      grp.__save = () => saveGroup(grp);
       grp.boxes.forEach(({ el }) => {
+        cbGroupByEl.set(el, grp);
         if (el.__vegaCbListener) return;
         el.__vegaCbListener = true;
         el.addEventListener('change', () => saveGroup(grp));
@@ -1396,10 +1424,395 @@ window.runVegaAutofill = function(profile) {
     }
   };
 
+  // ── Radio-group learning ────────────────────────────────────────────────────
+  // Radio groups the standard pass didn't handle (it only knows EEO-style
+  // questions) are learned like checkbox groups: one field per question whose
+  // answer is the selected option's label. A saved answer re-selects the same
+  // option next time, and any change the user makes is written back.
+  const discoverAndLearnRadios = () => {
+    let pageUrl = '';
+    try { pageUrl = location.href; } catch (e) {}
+
+    const allRadios = queryAllIncludingShadows('input[type="radio"]').filter(r => {
+      if (matchedElements.has(r)) return false;
+      if (r.disabled) return false;
+      try { const b = r.getBoundingClientRect(); if (b.width === 0 && b.height === 0) return false; } catch (e) {}
+      return true;
+    });
+    if (allRadios.length === 0) return;
+
+    const groupMap = new Map();
+    let soloCounter = 0;
+    allRadios.forEach(r => {
+      const name = (r.getAttribute('name') || '').trim();
+      let groupId;
+      if (name) {
+        groupId = 'name:' + name;
+      } else {
+        const fs = r.closest('fieldset');
+        if (fs && fs.querySelector('legend')) {
+          if (!fs.__vegaRadioGid) fs.__vegaRadioGid = 'rfs' + (++soloCounter);
+          groupId = fs.__vegaRadioGid;
+        } else {
+          groupId = 'rsolo:' + (++soloCounter);
+        }
+      }
+      if (!groupMap.has(groupId)) groupMap.set(groupId, []);
+      groupMap.get(groupId).push(r);
+    });
+
+    const groups = [];
+    const groupByKey = new Map();
+    groupMap.forEach(boxes => {
+      const labeled = boxes
+        .map(el => ({ el, optLabel: getCheckboxLabel(el) }))
+        .filter(b => b.optLabel);
+      if (labeled.length === 0) return;
+      const opts = labeled.map(b => b.optLabel);
+      const question = getCheckboxGroupQuestion(labeled.map(b => b.el), opts) || opts.join(' / ');
+      if (!question || question.length < 2 || question.length > 400) return;
+      const fieldKey = normalizeString(question).slice(0, 300);
+      if (!fieldKey) return;
+      const grp = { fieldKey, label: question, options: opts, boxes: labeled, __lastSaved: null, __filling: false };
+      labeled.forEach(b => matchedElements.add(b.el));
+      groups.push(grp);
+      if (!groupByKey.has(fieldKey)) groupByKey.set(fieldKey, grp);
+    });
+    if (groups.length === 0) return;
+
+    const currentSelection = (grp) => {
+      const sel = grp.boxes.find(b => b.el.checked);
+      return sel ? sel.optLabel : '';
+    };
+
+    const saveGroup = (grp) => {
+      if (grp.__filling) return;
+      const value = currentSelection(grp);
+      if (grp.__lastSaved === value) return;
+      grp.__lastSaved = value;
+      try {
+        chrome.runtime.sendMessage({
+          type: 'vegaSaveFieldValue',
+          field: { fieldKey: grp.fieldKey, label: grp.label, fieldType: 'radio', options: grp.options, value, lastSeenUrl: pageUrl }
+        }, (resp) => {
+          if (chrome.runtime.lastError) return;
+          if (resp && resp.ok) {
+            if (resp.firstAnswer) {
+              vegaLog(`🆕 New multiple-choice answer recorded: "${trunc(grp.label)}" = "${trunc(value)}"`);
+              vegaNotify(`Saved a new answer to your Vega profile: "${trunc(grp.label)}"`);
+            } else {
+              vegaLog(`✎ Updated saved answer: "${trunc(grp.label)}" = "${trunc(value)}"`);
+            }
+          } else {
+            vegaLog(`⚠ Could not save "${trunc(grp.label)}": ${resp && resp.error ? resp.error : 'no response'}`);
+          }
+        });
+      } catch (e) { /* extension context may be gone */ }
+    };
+
+    // Remember edits to any radio in the group.
+    groups.forEach(grp => {
+      grp.__lastSaved = currentSelection(grp);
+      grp.__save = () => saveGroup(grp);
+      grp.boxes.forEach(({ el }) => {
+        radioGroupByEl.set(el, grp);
+        if (el.__vegaRadioListener) return;
+        el.__vegaRadioListener = true;
+        el.addEventListener('change', () => saveGroup(grp));
+      });
+    });
+
+    const discovered = groups.map(g => ({
+      fieldKey: g.fieldKey, label: g.label, fieldType: 'radio', options: g.options, lastSeenUrl: pageUrl
+    }));
+    vegaLog(`🔍 Scanned page: ${discovered.length} multiple-choice question(s) found — checking your saved answers…`);
+
+    try {
+      chrome.runtime.sendMessage({ type: 'vegaDiscoverFields', fields: discovered }, (resp) => {
+        if (!resp || !resp.ok) {
+          vegaLog(`⚠ Multiple-choice sync failed: ${resp && resp.error ? resp.error : 'no response from background'}`);
+          return;
+        }
+        const savedFields = Array.isArray(resp.fields) ? resp.fields : [];
+        const createdKeys = new Set(resp.createdKeys || []);
+        discovered.forEach(d => {
+          if (createdKeys.has(d.fieldKey)) {
+            vegaLog(`🆕 New multiple-choice question saved to your profile (needs an answer): "${trunc(d.label)}"`);
+          }
+        });
+
+        savedFields.forEach(saved => {
+          if (saved.value == null || saved.value === '') return;
+          const grp = groupByKey.get(saved.fieldKey);
+          if (!grp) return;
+          const want = normalizeString(String(saved.value));
+          const target = grp.boxes.find(b => normalizeString(b.optLabel) === want)
+            || grp.boxes.find(b => normalizeString(b.optLabel).includes(want) || want.includes(normalizeString(b.optLabel)));
+          if (!target || target.el.checked) return;
+          grp.__filling = true;
+          target.el.checked = true;
+          target.el.dispatchEvent(new Event('input', { bubbles: true }));
+          target.el.dispatchEvent(new Event('change', { bubbles: true }));
+          target.el.dispatchEvent(new Event('click', { bubbles: true }));
+          grp.__lastSaved = currentSelection(grp);
+          grp.__filling = false;
+          filledCount++;
+          highlight(target.el.closest('label') || target.el);
+          vegaLog(`✓ Selected remembered answer "${trunc(saved.value)}" for "${trunc(saved.label)}"`);
+        });
+      });
+    } catch (e) {
+      console.warn('Vega: could not send discovered radios:', e);
+    }
+  };
+
+  // ── Button-group (segmented control) learning ───────────────────────────────
+  // Some ATSs (Ashby) render Yes/No questions as styled <button>s, not radio
+  // inputs — clicks fire no change events and no form control holds the answer.
+  // Groups of 2–6 short-labeled sibling buttons under an identifiable question
+  // are learned as one field; the clicked option's label is the answer, and a
+  // saved answer is re-applied by clicking the exact-matching option. Buttons
+  // with action-like labels (Submit, Next, …) are never learned or clicked.
+  const BUTTON_ACTION_RE = /submit|apply|send|next|back|cancel|upload|attach|save|continue|clear|remove|delete|close|search|sign ?up|log ?in|edit|view|show|hide|more/i;
+  const btnGroupByEl = new Map();
+
+  const getButtonOptionLabel = (btn) => {
+    const t = cbClean(btn.textContent);
+    if (!t || t.length > 40) return '';
+    if (BUTTON_ACTION_RE.test(t)) return '';
+    return t;
+  };
+
+  const isButtonActive = (btn) => {
+    if (btn.getAttribute('aria-pressed') === 'true' || btn.getAttribute('aria-checked') === 'true' || btn.getAttribute('aria-selected') === 'true') return true;
+    return /(^|[_\s-])(active|selected|checked)/i.test(typeof btn.className === 'string' ? btn.className : '');
+  };
+
+  const discoverAndLearnButtonGroups = () => {
+    let pageUrl = '';
+    try { pageUrl = location.href; } catch (e) {}
+
+    const buttons = queryAllIncludingShadows('button').filter(btn => {
+      if (matchedElements.has(btn)) return false;
+      if (btn.disabled) return false;
+      if (!getButtonOptionLabel(btn)) return false;
+      try { const r = btn.getBoundingClientRect(); if (r.width === 0 && r.height === 0) return false; } catch (e) {}
+      return true;
+    });
+    if (!buttons.length) return;
+
+    // Group by direct parent; only clusters of 2–6 option-like buttons qualify.
+    const byParent = new Map();
+    buttons.forEach(btn => {
+      const p = btn.parentElement;
+      if (!p) return;
+      if (!byParent.has(p)) byParent.set(p, []);
+      byParent.get(p).push(btn);
+    });
+
+    const groups = [];
+    const groupByKey = new Map();
+    byParent.forEach(btns => {
+      if (btns.length < 2 || btns.length > 6) return;
+      const labeled = btns.map(el => ({ el, optLabel: getButtonOptionLabel(el) }));
+      const opts = labeled.map(b => b.optLabel);
+      // Without a findable question this is more likely a toolbar than a form
+      // answer — too risky to learn (and to click on refill).
+      const question = getCheckboxGroupQuestion(labeled.map(b => b.el), opts);
+      if (!question || question.length < 2 || question.length > 400) return;
+      const fieldKey = normalizeString(question).slice(0, 300);
+      if (!fieldKey) return;
+      const grp = { fieldKey, label: question, options: opts, boxes: labeled, __lastSaved: null, __filling: false };
+      labeled.forEach(b => matchedElements.add(b.el));
+      groups.push(grp);
+      if (!groupByKey.has(fieldKey)) groupByKey.set(fieldKey, grp);
+    });
+    if (!groups.length) return;
+
+    const currentSelection = (grp) => {
+      const sel = grp.boxes.find(b => isButtonActive(b.el));
+      return sel ? sel.optLabel : '';
+    };
+
+    const saveGroup = (grp, value) => {
+      if (grp.__filling) return;
+      if (value == null || value === '') return;
+      if (grp.__lastSaved === value) return;
+      grp.__lastSaved = value;
+      try {
+        chrome.runtime.sendMessage({
+          type: 'vegaSaveFieldValue',
+          field: { fieldKey: grp.fieldKey, label: grp.label, fieldType: 'buttongroup', options: grp.options, value, lastSeenUrl: pageUrl }
+        }, (resp) => {
+          if (chrome.runtime.lastError) return;
+          if (resp && resp.ok) {
+            if (resp.firstAnswer) {
+              vegaLog(`🆕 New answer recorded: "${trunc(grp.label)}" = "${trunc(value)}"`);
+              vegaNotify(`Saved a new answer to your Vega profile: "${trunc(grp.label)}"`);
+            } else {
+              vegaLog(`✎ Updated saved answer: "${trunc(grp.label)}" = "${trunc(value)}"`);
+            }
+          } else {
+            vegaLog(`⚠ Could not save "${trunc(grp.label)}": ${resp && resp.error ? resp.error : 'no response'}`);
+          }
+        });
+      } catch (e) { /* extension context may be gone */ }
+    };
+
+    groups.forEach(grp => {
+      grp.__lastSaved = currentSelection(grp);
+      grp.__save = (value) => saveGroup(grp, value);
+      grp.boxes.forEach(({ el, optLabel }) => {
+        btnGroupByEl.set(el, grp);
+        if (el.__vegaBtnListener) return;
+        el.__vegaBtnListener = true;
+        el.addEventListener('click', (e) => { if (e.isTrusted) saveGroup(grp, optLabel); });
+      });
+    });
+
+    const discovered = groups.map(g => ({
+      fieldKey: g.fieldKey, label: g.label, fieldType: 'buttongroup', options: g.options, lastSeenUrl: pageUrl
+    }));
+    vegaLog(`🔍 Scanned page: ${discovered.length} button question(s) found — checking your saved answers…`);
+
+    try {
+      chrome.runtime.sendMessage({ type: 'vegaDiscoverFields', fields: discovered }, (resp) => {
+        if (!resp || !resp.ok) {
+          vegaLog(`⚠ Button-question sync failed: ${resp && resp.error ? resp.error : 'no response from background'}`);
+          return;
+        }
+        const savedFields = Array.isArray(resp.fields) ? resp.fields : [];
+        const createdKeys = new Set(resp.createdKeys || []);
+        discovered.forEach(d => {
+          if (createdKeys.has(d.fieldKey)) {
+            vegaLog(`🆕 New button question saved to your profile (needs an answer): "${trunc(d.label)}"`);
+          }
+        });
+
+        savedFields.forEach(saved => {
+          if (saved.value == null || saved.value === '') return;
+          const grp = groupByKey.get(saved.fieldKey);
+          if (!grp) return;
+          const want = normalizeString(String(saved.value));
+          // Exact label match only — never click a button we're unsure about.
+          const target = grp.boxes.find(b => normalizeString(b.optLabel) === want);
+          if (!target || isButtonActive(target.el)) return;
+          grp.__filling = true;
+          try { target.el.click(); } catch (e) {}
+          grp.__filling = false;
+          grp.__lastSaved = String(saved.value);
+          filledCount++;
+          highlight(target.el);
+          vegaLog(`✓ Selected remembered answer "${trunc(saved.value)}" for "${trunc(saved.label)}"`);
+        });
+      });
+    } catch (e) {
+      console.warn('Vega: could not send discovered button groups:', e);
+    }
+  };
+
+  // ── Always-on field recorder ────────────────────────────────────────────────
+  // Fields can appear after the initial pass (conditional questions, framework
+  // re-renders) and users interact with fields no pass matched. Two safety
+  // nets: a MutationObserver learns/fills fields as they appear, and a
+  // document-level change listener hooks any still-unwatched field the moment
+  // the user commits a value in it, so the value is saved to the profile/DB
+  // and reused by the next autofill.
+  let dynamicWatcherStarted = false;
+  const startDynamicFieldWatcher = () => {
+    if (dynamicWatcherStarted) return;
+    dynamicWatcherStarted = true;
+
+    let rescanTimer = null;
+    const scheduleRescan = () => {
+      if (rescanTimer) return;
+      rescanTimer = setTimeout(() => {
+        rescanTimer = null;
+        fillTextAndFormFields();
+        discoverAndLearnCustomFields();
+        discoverAndLearnCheckboxes();
+        discoverAndLearnRadios();
+        discoverAndLearnButtonGroups();
+      }, 600);
+    };
+
+    try {
+      const mo = new MutationObserver((muts) => {
+        for (const m of muts) {
+          for (const node of m.addedNodes) {
+            if (node.nodeType !== 1) continue;
+            if ((node.matches && node.matches('input, textarea, select')) ||
+                (node.querySelector && node.querySelector('input, textarea, select'))) {
+              scheduleRescan();
+              return;
+            }
+          }
+        }
+      });
+      mo.observe(document.body, { childList: true, subtree: true });
+    } catch (e) { /* ignore */ }
+
+    document.addEventListener('change', (e) => {
+      // Only real user actions — our own fills dispatch untrusted events.
+      if (!e.isTrusted) return;
+      const el = e.target;
+      if (!(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement)) return;
+      if (el.__vegaStdListener || el.__vegaListenerAttached || el.__vegaCbListener || el.__vegaRadioListener) return;
+      const type = el instanceof HTMLInputElement ? (el.type || 'text').toLowerCase() : '';
+
+      if (type === 'checkbox' || type === 'radio') {
+        // Learn the group now, then persist the selection that caused this event.
+        discoverAndLearnCheckboxes();
+        discoverAndLearnRadios();
+        const grp = cbGroupByEl.get(el) || radioGroupByEl.get(el);
+        if (grp && grp.__save) { grp.__lastSaved = null; grp.__save(); }
+        return;
+      }
+      if (SKIP_TYPES.has(type)) return;
+
+      // Standard profile field the initial pass missed?
+      let bestKey = null;
+      let bestScore = 30;
+      if (el.tagName !== 'TEXTAREA') {
+        for (const fieldKey of Object.keys(fieldKeywords)) {
+          const score = getScoreForField(el, fieldKey);
+          if (score > bestScore) { bestScore = score; bestKey = fieldKey; }
+        }
+      }
+      // Listeners attached to the target during the document capture phase
+      // still run for this same event, so the committed value is saved now.
+      if (bestKey && SYNCABLE_KEYS.has(bestKey)) {
+        attachStandardSync(el, bestKey);
+        el.__vegaStdLast = ''; // force the just-attached handler to treat this value as new
+      } else {
+        const sig = buildFieldSignature(el);
+        if (sig) attachCustomFieldListener(el, sig);
+      }
+    }, true);
+
+    // Clicks on option-style buttons (Ashby-style Yes/No) that no pass has
+    // learned yet: learn the group now and persist the clicked option.
+    document.addEventListener('click', (e) => {
+      if (!e.isTrusted) return;
+      const btn = e.target && e.target.closest ? e.target.closest('button') : null;
+      if (!btn || btn.__vegaBtnListener) return;
+      const label = getButtonOptionLabel(btn);
+      if (!label) return;
+      discoverAndLearnButtonGroups();
+      const grp = btnGroupByEl.get(btn);
+      if (grp && grp.__save) { grp.__lastSaved = null; grp.__save(label); }
+    }, true);
+  };
+
+
+
   const runAllFillPasses = (opts = {}) => {
     fillTextAndFormFields(opts);
     discoverAndLearnCustomFields();
     discoverAndLearnCheckboxes();
+    discoverAndLearnRadios();
+    discoverAndLearnButtonGroups();
+    startDynamicFieldWatcher();
     showToast();
   };
 

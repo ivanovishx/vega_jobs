@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { prisma } from '../../db/prisma';
+import { AuthRequest } from '../../middleware/auth';
 
 const router = Router();
 
@@ -77,11 +78,14 @@ router.get('/', async (req, res) => {
       fundedWithinDays = '',
       minFunding = '',
       maxFunding = '',
+      favorites = '',
       page = '1',
       limit = '50',
       sortBy = 'rank',
       sortDir = 'asc',
     } = req.query as Record<string, string>;
+
+    const userId = (req as AuthRequest).userId ?? '';
 
     const pageNum = Math.max(1, parseInt(page) || 1);
     const limitNum = Math.min(200, Math.max(1, parseInt(limit) || 50));
@@ -144,14 +148,24 @@ router.get('/', async (req, res) => {
     const maxF = parseFloat(maxFunding);
     if (!isNaN(maxF)) conditions.push(`${FUNDING_TOTAL_EXPR} <= ${p(maxF)}`);
 
+    if (favorites === '1' || favorites === 'true') {
+      conditions.push(`EXISTS (SELECT 1 FROM "UserFavoriteCompany" f
+        WHERE f."companyUuid" = "CrunchbaseCompany"."uuid" AND f."userId" = ${p(userId)})`);
+    }
+
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
     const countParams = [...params];
+    // SELECT-only params go after the countParams snapshot so the COUNT query
+    // receives exactly the placeholders its SQL references.
+    const favPh = p(userId);
     const limitPh = p(limitNum);
     const offsetPh = p(offset);
 
     const dataSql = `SELECT
         "uuid" AS id,
+        EXISTS (SELECT 1 FROM "UserFavoriteCompany" f
+          WHERE f."companyUuid" = "CrunchbaseCompany"."uuid" AND f."userId" = ${favPh}) AS "isFavorite",
         "identifier" AS name,
         "rank_org"::int AS rank,
         "website",
@@ -225,6 +239,33 @@ router.get('/', async (req, res) => {
       page: pageNum,
       limit: limitNum,
     });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Mark/unmark a company as the current user's favorite.
+router.post('/:uuid/favorite', async (req, res) => {
+  try {
+    const userId = (req as AuthRequest).userId;
+    if (!userId) {
+      res.status(401).json({ error: 'Not authenticated' });
+      return;
+    }
+    const { uuid } = req.params;
+    const favorite = !!(req.body && req.body.favorite);
+    if (favorite) {
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO "UserFavoriteCompany" ("userId", "companyUuid") VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+        userId, uuid
+      );
+    } else {
+      await prisma.$executeRawUnsafe(
+        `DELETE FROM "UserFavoriteCompany" WHERE "userId" = $1 AND "companyUuid" = $2`,
+        userId, uuid
+      );
+    }
+    res.json({ ok: true, favorite });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
