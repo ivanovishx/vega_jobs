@@ -116,12 +116,27 @@ export const fetchCompanies = async (params?: {
 
 export const fetchNewsCompanies = async (params?: {
   search?: string;
+  searchIn?: string;
+  status?: string;
+  stages?: string;
+  categories?: string;
+  states?: string;
+  foundedFrom?: string;
+  foundedTo?: string;
+  fundedWithinDays?: string;
+  minFunding?: string;
+  maxFunding?: string;
   page?: number;
   limit?: number;
   sortBy?: string;
   sortDir?: string;
 }) => {
   const res = await api.get('news-companies', { params });
+  return res.data;
+};
+
+export const fetchNewsCompanyFacets = async () => {
+  const res = await api.get('news-companies/facets');
   return res.data;
 };
 
