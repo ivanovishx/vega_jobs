@@ -3,6 +3,14 @@ import { fetchApplications, createApplication, autofillApplication } from '../ap
 import { Link } from 'react-router-dom';
 import clsx from 'clsx';
 
+// Render an ISO timestamp in the viewer's own locale and timezone.
+const formatLocalDateTime = (iso?: string) => {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return null;
+  return d.toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+};
+
 export default function Applications() {
   const [applications, setApplications] = useState<any[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -129,6 +137,7 @@ export default function Applications() {
                     <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-zinc-100">Role</th>
                     <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-zinc-100">URL</th>
                     <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-zinc-100">Status</th>
+                    <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-zinc-100">Applied</th>
                     <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-zinc-100">Match Score</th>
                     <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-zinc-100">Next Action</th>
                     <th className="relative py-3.5 pl-3 pr-4 sm:pr-6">
@@ -156,6 +165,19 @@ export default function Applications() {
                         <span className="inline-flex items-center rounded-full bg-green-100 dark:bg-green-500/15 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:text-green-300">
                           {app.status}
                         </span>
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-zinc-400">
+                        {/* Prefer the date the user applied; fall back to when the entry hit the DB. */}
+                        {app.dateApplied ? (
+                          formatLocalDateTime(app.dateApplied)
+                        ) : formatLocalDateTime(app.createdAt) ? (
+                          <>
+                            {formatLocalDateTime(app.createdAt)}
+                            <div className="text-[11px] text-gray-400 dark:text-zinc-500">added</div>
+                          </>
+                        ) : (
+                          '-'
+                        )}
                       </td>
                       <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-zinc-400">
                         <div className="flex items-center">
