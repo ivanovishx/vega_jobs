@@ -33,7 +33,10 @@ const SEARCH_COLS: Record<string, string[]> = {
   name: ['identifier'],
   description: ['short_description'],
   website: ['website'],
-  all: ['identifier', 'short_description', 'website'],
+  // 'all' deliberately excludes website: its trigram index could not be built
+  // (disk full — see the SQL file), and an unindexed ILIKE in the OR forces a
+  // ~19s seq scan on every default search. Re-add once the index exists.
+  all: ['identifier', 'short_description'],
 };
 
 const FUNDING_STAGES = new Set([
@@ -143,63 +146,78 @@ router.get('/', async (req, res) => {
 
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
+    const countParams = [...params];
+    const limitPh = p(limitNum);
+    const offsetPh = p(offset);
+
+    const dataSql = `SELECT
+        "uuid" AS id,
+        "identifier" AS name,
+        "rank_org"::int AS rank,
+        "website",
+        "short_description" AS description1,
+        CASE WHEN "permalink" IS NOT NULL
+          THEN 'https://www.crunchbase.com/organization/' || "permalink"
+          ELSE NULL END AS "crunchbaseLink",
+        ${CITY_EXPR} AS "city",
+        ${STATE_EXPR} AS "state",
+        ${FOUNDED_YEAR_EXPR} AS "foundedYear",
+        NULLIF("funding_stage", '') AS "fundingStage",
+        ${FUNDING_TOTAL_EXPR}::float8 AS "fundingTotalUsd",
+        ${LAST_FUNDING_EXPR} AS "lastFundingAt",
+        NULLIF("last_funding_type", '') AS "lastFundingType",
+        "category_groups" AS "categoryGroups",
+        "operating_status" AS "operatingStatus"
+      FROM "CrunchbaseCompany"
+      ${where}
+      ORDER BY ${orderExpr} ${dir} NULLS LAST
+      LIMIT ${limitPh} OFFSET ${offsetPh}`;
+
     // CrunchbaseCompany has ~1.8M rows. An exact COUNT(*) over the whole table
     // takes ~55s, so with no filters we use the planner's row estimate
     // (reltuples). The default view (only the status filter) uses the cached
     // per-status count from CrunchbaseFacet. Anything narrower gets an exact
     // count — every filterable column is indexed to keep that fast.
     const onlyStatusFilter = statusFilter !== null && conditions.length === 1;
-    const countPromise = !conditions.length
-      ? prisma
-          .$queryRawUnsafe<[{ estimate: number }]>(
-            `SELECT reltuples::bigint AS estimate FROM pg_class WHERE relname = 'CrunchbaseCompany'`
-          )
-          .then((rows) => Number(rows[0]?.estimate ?? 0))
-      : onlyStatusFilter
-      ? prisma
-          .$queryRawUnsafe<[{ count: number }]>(
-            `SELECT count FROM "CrunchbaseFacet" WHERE kind = 'operating_status' AND value = $1`,
-            statusFilter
-          )
-          .then((rows) => Number(rows[0]?.count ?? 0))
-      : prisma
-          .$queryRawUnsafe<[{ count: bigint }]>(
+    let total: number;
+    let companies: Record<string, unknown>[];
+
+    if (!conditions.length || onlyStatusFilter) {
+      const countPromise = !conditions.length
+        ? prisma
+            .$queryRawUnsafe<[{ estimate: number }]>(
+              `SELECT reltuples::bigint AS estimate FROM pg_class WHERE relname = 'CrunchbaseCompany'`
+            )
+            .then((rows) => Number(rows[0]?.estimate ?? 0))
+        : prisma
+            .$queryRawUnsafe<[{ count: number }]>(
+              `SELECT count FROM "CrunchbaseFacet" WHERE kind = 'operating_status' AND value = $1`,
+              statusFilter
+            )
+            .then((rows) => Number(rows[0]?.count ?? 0));
+      [total, companies] = await Promise.all([
+        countPromise,
+        prisma.$queryRawUnsafe<Record<string, unknown>[]>(dataSql, ...params),
+      ]);
+    } else {
+      // Filtered queries use bitmap scans over the expression indexes; the
+      // default 4MB work_mem makes those bitmaps lossy on this table (~2x the
+      // heap reads), so raise it for just this transaction. The explicit
+      // timeout overrides Prisma's 5s default, which broad filter combos on
+      // this instance can exceed.
+      [total, companies] = await prisma.$transaction(
+        async (tx) => {
+          await tx.$executeRawUnsafe(`SET LOCAL work_mem = '64MB'`);
+          const countRows = await tx.$queryRawUnsafe<[{ count: bigint }]>(
             `SELECT COUNT(*) as count FROM "CrunchbaseCompany" ${where}`,
-            ...params
-          )
-          .then((rows) => Number(rows[0].count));
-
-    const limitPh = p(limitNum);
-    const offsetPh = p(offset);
-
-    const [total, companies] = await Promise.all([
-      countPromise,
-      prisma.$queryRawUnsafe<Record<string, unknown>[]>(
-        `SELECT
-           "uuid" AS id,
-           "identifier" AS name,
-           "rank_org"::int AS rank,
-           "website",
-           "short_description" AS description1,
-           CASE WHEN "permalink" IS NOT NULL
-             THEN 'https://www.crunchbase.com/organization/' || "permalink"
-             ELSE NULL END AS "crunchbaseLink",
-           ${CITY_EXPR} AS "city",
-           ${STATE_EXPR} AS "state",
-           ${FOUNDED_YEAR_EXPR} AS "foundedYear",
-           NULLIF("funding_stage", '') AS "fundingStage",
-           ${FUNDING_TOTAL_EXPR}::float8 AS "fundingTotalUsd",
-           ${LAST_FUNDING_EXPR} AS "lastFundingAt",
-           NULLIF("last_funding_type", '') AS "lastFundingType",
-           "category_groups" AS "categoryGroups",
-           "operating_status" AS "operatingStatus"
-         FROM "CrunchbaseCompany"
-         ${where}
-         ORDER BY ${orderExpr} ${dir} NULLS LAST
-         LIMIT ${limitPh} OFFSET ${offsetPh}`,
-        ...params
-      ),
-    ]);
+            ...countParams
+          );
+          const rows = await tx.$queryRawUnsafe<Record<string, unknown>[]>(dataSql, ...params);
+          return [Number(countRows[0].count), rows] as const;
+        },
+        { timeout: 60_000 }
+      );
+    }
 
     res.json({
       companies,
