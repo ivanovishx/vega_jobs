@@ -203,7 +203,9 @@ window.runVegaAutofill = function(profile) {
     },
     portfolio: {
       exact: ['portfolio', 'website', 'personal site', 'personal-site', 'personalsite', 'personal website', 'web site', 'web_site', 'sitio web', 'portafolio', 'portfolio url', 'website url'],
-      partial: ['portfolio', 'website', 'sitio', 'url']
+      // 'url' deliberately absent: any "<platform> URL" field (Twitter URL,
+      // Other website URL, …) would otherwise score as portfolio.
+      partial: ['portfolio', 'website', 'sitio']
     },
     salary: {
       exact: ['desired salary', 'salary expectation', 'salary expectations', 'expected salary', 'compensation', 'target salary', 'salario deseado', 'expectativa salarial', 'pretensión salarial', 'desired pay', 'expected pay'],
@@ -266,18 +268,35 @@ window.runVegaAutofill = function(profile) {
     }
 
     try {
+      // A field that carries its own label must be scored on that label alone.
+      // Ancestor containers hold NEIGHBORING questions' text (Ashby nests
+      // several fields per container), which made e.g. "Current location"
+      // leak into every field's signature and fill the whole form with the
+      // same value. Ancestor text is only a fallback for unlabeled controls
+      // (file dropzones and similar).
+      let hasDirectLabel = false;
       if (el.id) {
         const lbl = document.querySelector(`label[for="${CSS.escape(el.id)}"]`);
-        if (lbl) push(lbl.textContent);
+        if (lbl && (lbl.textContent || '').trim()) {
+          push(lbl.textContent);
+          hasDirectLabel = true;
+        }
       }
       const wrap = el.closest('label');
-      if (wrap) push(wrap.textContent);
+      if (wrap && (wrap.textContent || '').trim()) {
+        push(wrap.textContent);
+        hasDirectLabel = true;
+      }
+      if ((el.getAttribute('aria-label') || '').trim()) hasDirectLabel = true; // pushed above
 
       const labelledBy = el.getAttribute('aria-labelledby');
       if (labelledBy) {
         labelledBy.split(/\s+/).forEach(refId => {
           const ref = document.getElementById(refId);
-          if (ref) push(ref.textContent);
+          if (ref && (ref.textContent || '').trim()) {
+            push(ref.textContent);
+            hasDirectLabel = true;
+          }
         });
       }
       const describedBy = el.getAttribute('aria-describedby');
@@ -288,24 +307,24 @@ window.runVegaAutofill = function(profile) {
         });
       }
 
-      // Traverse up to 3 levels of parents to collect dropzone / form group label texts
-      let current = el.parentElement;
-      let depth = 0;
-      while (current && depth < 3) {
-        // Compact ATS layouts (e.g. Ashby) reach the whole-form container
-        // within 3 levels; taking its text would leak every question on the
-        // page into this field's signature (a "LinkedIn" question elsewhere
-        // then outscores "name" for the name field). Only label-sized text.
-        const parentText = (current.textContent || '').trim();
-        if (parentText && parentText.length <= 200) {
-          push(parentText);
+      if (!hasDirectLabel) {
+        // Traverse up to 3 levels of parents to collect dropzone / form group label texts
+        let current = el.parentElement;
+        let depth = 0;
+        while (current && depth < 3) {
+          // Only label-sized text — whole-form containers would leak every
+          // question on the page into this field's signature.
+          const parentText = (current.textContent || '').trim();
+          if (parentText && parentText.length <= 200) {
+            push(parentText);
+          }
+          push(current.getAttribute('data-qa'));
+          push(current.getAttribute('data-testid'));
+          push(current.id);
+
+          current = current.parentElement;
+          depth++;
         }
-        push(current.getAttribute('data-qa'));
-        push(current.getAttribute('data-testid'));
-        push(current.id);
-        
-        current = current.parentElement;
-        depth++;
       }
     } catch (e) { /* ignore */ }
 
@@ -426,20 +445,29 @@ window.runVegaAutofill = function(profile) {
 
     const rules = fieldKeywords[fieldKey];
     if (rules) {
-      // 2. Exact keyword matches
+      // Word-boundary matching: bare substring checks caused e.g. the exact
+      // keyword "location" to match inside "If relocating ... for relocation".
+      const tokens = normalizedToMatch.split(' ');
+      const hasPhrase = (kw) => (' ' + normalizedToMatch + ' ').includes(' ' + kw + ' ');
+
+      // 2. Exact keyword matches (whole text, whole token, or whole phrase)
       for (const kw of rules.exact) {
         const normKw = normalizeString(kw);
-        if (normalizedToMatch === normKw || normalizedToMatch.split(/\s+/).includes(normKw)) {
+        if (normalizedToMatch === normKw || tokens.includes(normKw)) {
           score += 100;
-        } else if (normalizedToMatch.includes(normKw)) {
+        } else if (normKw.includes(' ') && hasPhrase(normKw)) {
           score += 60;
         }
       }
 
-      // 3. Partial keyword matches
+      // 3. Partial keyword matches (token prefix, so "mobil" still hits
+      // "mobile"; multi-word partials match as whole phrases)
       for (const kw of rules.partial) {
         const normKw = normalizeString(kw);
-        if (normalizedToMatch.includes(normKw)) {
+        const hit = normKw.includes(' ')
+          ? hasPhrase(normKw)
+          : tokens.some(t => t === normKw || t.startsWith(normKw));
+        if (hit) {
           score += 50;
         }
       }
@@ -468,6 +496,22 @@ window.runVegaAutofill = function(profile) {
       if (['first_name', 'last_name', 'name', 'email', 'phone'].includes(fieldKey)) {
         score -= 120;
       }
+    }
+
+    // A link field for a DIFFERENT platform (Lever's "Twitter URL", etc.) must
+    // not receive our LinkedIn/GitHub/portfolio values — leave it to
+    // custom-field learning so the user's own answer is remembered instead.
+    const fieldTokens = normalizedToMatch.split(' ');
+    if (['linkedin', 'github', 'portfolio'].includes(fieldKey)) {
+      const OTHER_PLATFORMS = ['twitter', 'instagram', 'facebook', 'dribbble', 'behance', 'medium', 'youtube', 'stackoverflow', 'kaggle'];
+      if (OTHER_PLATFORMS.some(p => fieldTokens.includes(p))) {
+        score -= 120;
+      }
+    }
+    // "Other …" catch-all fields (Lever's "Other website") are ambiguous —
+    // better remembered per user as custom fields than guessed.
+    if (fieldTokens.includes('other') || fieldTokens.includes('otro') || fieldTokens.includes('otra')) {
+      score -= 120;
     }
 
     return score;
