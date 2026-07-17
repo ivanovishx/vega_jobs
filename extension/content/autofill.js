@@ -929,10 +929,12 @@ window.runVegaAutofill = function(profile) {
     }
 
     if (targetSelection) {
-      radios.forEach(r => matchedElements.add(r));
+      // Deliberately NOT added to matchedElements: radio-group learning must
+      // still watch these groups so the user's own pick is recorded and
+      // remembered — the profile-derived fill below is only a default.
       let selectedRadio = null;
 
-      for (const radio of radios) {
+      const radioLabel = (radio) => {
         let labelText = "";
         if (radio.id) {
           const lbl = document.querySelector(`label[for="${CSS.escape(radio.id)}"]`);
@@ -942,7 +944,11 @@ window.runVegaAutofill = function(profile) {
           const parentLabel = radio.closest('label');
           if (parentLabel) labelText = parentLabel.textContent;
         }
-        
+        return labelText;
+      };
+
+      for (const radio of radios) {
+        const labelText = radioLabel(radio);
         const normLabel = normalizeString(labelText || radio.value);
         
         if (targetSelection === 'yes') {
@@ -980,15 +986,29 @@ window.runVegaAutofill = function(profile) {
         }
       }
 
+      // Long option labels ("No, I do not require Visa sponsorship.") never
+      // match the short keyword lists — classify their yes/no polarity instead.
+      if (!selectedRadio && (targetSelection === 'yes' || targetSelection === 'no')) {
+        const subject = isSponsorshipQuestion
+          ? ['sponsorship', 'sponsor', 'visa']
+          : ['authorized', 'legally', 'work'];
+        selectedRadio = radios.find(r =>
+          classifyAffirmation(radioLabel(r) || r.value, subject) === targetSelection
+        ) || null;
+      }
+
       if (selectedRadio && !selectedRadio.checked && !selectedRadio.__vegaFillQueued) {
         selectedRadio.__vegaFillQueued = true;
         filledCount++;
         enqueueFill(() => {
           selectedRadio.__vegaFillQueued = false;
           if (radios.some(r => r.checked)) return; // user picked during the stagger
-          selectedRadio.checked = true;
-          selectedRadio.dispatchEvent(new Event('change', { bubbles: true }));
-          selectedRadio.dispatchEvent(new Event('click', { bubbles: true }));
+          // Mark as OUR default so a remembered answer may override it —
+          // but a radio the user clicked themselves never gets overridden.
+          selectedRadio.__vegaAutoChecked = true;
+          // Native activation: manually setting .checked gets reverted by
+          // React-controlled forms (Ashby); .click() updates their state too.
+          try { selectedRadio.click(); } catch (e) { /* ignore */ }
           highlight(selectedRadio.closest('label') || selectedRadio);
           vegaLog(`✓ Selected option "${trunc(selectedRadio.value || targetSelection)}" for a multiple-choice question`);
         });
@@ -1027,8 +1047,8 @@ window.runVegaAutofill = function(profile) {
         filledCount++;
         enqueueFill(() => {
           if (checkbox.checked === targetState) return;
-          checkbox.checked = targetState;
-          checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+          // Native activation so React-controlled checkboxes keep the state.
+          try { checkbox.click(); } catch (e) { checkbox.checked = targetState; }
           highlight(checkbox.closest('label') || checkbox);
           vegaLog(`✓ ${targetState ? 'Checked' : 'Unchecked'} sponsorship checkbox`);
         });
@@ -1649,9 +1669,8 @@ window.runVegaAutofill = function(profile) {
             grp.boxes.forEach(({ el, optLabel }) => {
               const want = wanted.has(normalizeString(optLabel));
               if (el.checked !== want) {
-                el.checked = want;
-                el.dispatchEvent(new Event('input', { bubbles: true }));
-                el.dispatchEvent(new Event('change', { bubbles: true }));
+                // Native activation so React-controlled checkboxes keep the state.
+                try { el.click(); } catch (e) { el.checked = want; }
                 changed = true;
               }
             });
@@ -1796,12 +1815,12 @@ window.runVegaAutofill = function(profile) {
             || grp.boxes.find(b => normalizeString(b.optLabel).includes(want) || want.includes(normalizeString(b.optLabel)));
           if (!target || target.el.checked) return;
           enqueueFill(() => {
-            if (grp.boxes.some(b => b.el.checked)) return; // user picked during the stagger
+            // A pick made by the USER wins; our own profile-derived default
+            // (__vegaAutoChecked) yields to the remembered answer.
+            if (grp.boxes.some(b => b.el.checked && !b.el.__vegaAutoChecked)) return;
             grp.__filling = true;
-            target.el.checked = true;
-            target.el.dispatchEvent(new Event('input', { bubbles: true }));
-            target.el.dispatchEvent(new Event('change', { bubbles: true }));
-            target.el.dispatchEvent(new Event('click', { bubbles: true }));
+            // Native activation so React-controlled radios keep the state.
+            try { target.el.click(); } catch (e) { /* ignore */ }
             grp.__lastSaved = currentSelection(grp);
             grp.__filling = false;
             filledCount++;
