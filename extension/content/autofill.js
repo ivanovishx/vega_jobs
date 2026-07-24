@@ -369,6 +369,62 @@ window.runVegaAutofill = function(profile) {
     input.dispatchEvent(new Event('blur', { bubbles: true }));
   };
 
+  // Selects need the same native-setter treatment as inputs: assigning
+  // .value directly bypasses React's value tracker, so the framework keeps
+  // its stale state, renders the old option, and mishandles the user's next
+  // pick. Route the write through the prototype setter and fire input+change.
+  const setNativeSelectValue = (select, value) => {
+    const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value');
+    if (setter && setter.set) {
+      setter.set.call(select, value);
+    } else {
+      select.value = value;
+    }
+    select.dispatchEvent(new Event('input', { bubbles: true }));
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  };
+
+  // Full synthetic "click" including pointer events — modern widgets
+  // (Greenhouse's select) ignore bare MouseEvents and only react to
+  // pointerdown/pointerup.
+  const dispatchPointerClick = (el) => {
+    try {
+      el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1, isPrimary: true }));
+    } catch (e) { /* PointerEvent unsupported */ }
+    el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+    try {
+      el.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 1, isPrimary: true }));
+    } catch (e) { /* ignore */ }
+    el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0 }));
+    el.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+  };
+
+  // All programmatic fills run one at a time from a serial queue, ~200ms
+  // apart, instead of firing in one synchronous burst — rapid-fire synthetic
+  // events can trip debounced validation and other odd behaviors on some
+  // sites. A task that returns a promise (combobox fills: open menu → type →
+  // pick) HOLDS the queue until it completes: starting the next fill early
+  // used to steal focus, close the open menu and leave the option unselected.
+  // Each queued fill re-checks its preconditions when it runs, so nothing the
+  // user did during the delay gets overwritten.
+  const FILL_STAGGER_MS = 200;
+  const fillQueue = [];
+  let fillQueuePumping = false;
+  const pumpFillQueue = async () => {
+    if (fillQueuePumping) return;
+    fillQueuePumping = true;
+    while (fillQueue.length) {
+      await new Promise(r => setTimeout(r, FILL_STAGGER_MS));
+      const task = fillQueue.shift();
+      try { await task(); } catch (e) { /* ignore */ }
+    }
+    fillQueuePumping = false;
+  };
+  const enqueueFill = (fn) => {
+    fillQueue.push(fn);
+    pumpFillQueue();
+  };
+
   const highlight = (el) => { try { el.style.backgroundColor = '#e0e7ff'; } catch (e) {} };
 
   let filledCount = 0;
@@ -514,6 +570,28 @@ window.runVegaAutofill = function(profile) {
       score -= 120;
     }
 
+    // Yes/no questions phrased around a place — "authorized to work in the
+    // country…", "require sponsorship … in the country…", "do you reside in
+    // the location specified…" — must not be treated as location fields (they
+    // used to get the location typed into them). Custom-field learning
+    // remembers the user's yes/no answer instead. Questions asking FOR a
+    // place ("What state do you reside in?", "From where do you intend to
+    // work?") contain "what"/"where" and stay location fields.
+    if (['country', 'city', 'state', 'location'].includes(fieldKey)) {
+      if (normalizedToMatch.includes('authorized') || normalizedToMatch.includes('authorization') ||
+          normalizedToMatch.includes('sponsor') || normalizedToMatch.includes('visa') ||
+          normalizedToMatch.includes('eligible') || normalizedToMatch.includes('eligibility')) {
+        score -= 150;
+      }
+      const padded = ' ' + normalizedToMatch + ' ';
+      const yesNoPhrased = padded.includes(' do you ') || padded.includes(' are you ') ||
+        padded.includes(' have you ') || padded.includes(' will you ');
+      const asksForPlace = fieldTokens.includes('where') || fieldTokens.includes('what') || fieldTokens.includes('which');
+      if (yesNoPhrased && !asksForPlace) {
+        score -= 150;
+      }
+    }
+
     return score;
   };
 
@@ -525,16 +603,33 @@ window.runVegaAutofill = function(profile) {
   // so the suggestion list opens, then click a matching option. This is a best-
   // effort handler — it types the value, waits for options, and selects the
   // option whose text best matches.
-  const selectFromTypeahead = (input, value) => {
+  // Returns a promise that resolves once the pick has been made and the
+  // widget has had a moment to settle — the fill queue awaits it so the next
+  // fill can't steal focus and close this menu mid-selection.
+  const selectFromTypeahead = (input, value) => new Promise((resolve) => {
     try {
-      input.focus();
-      setNativeValue(input, value);
-      const lastChar = value.slice(-1) || 'a';
-      input.dispatchEvent(new KeyboardEvent('keydown', { key: lastChar, bubbles: true }));
-      input.dispatchEvent(new KeyboardEvent('keyup', { key: lastChar, bubbles: true }));
+      if (typeof input.focus === 'function') input.focus();
+      // Open the menu via a pointer-event click on the widget's control —
+      // typing alone doesn't open some builds (Greenhouse ignores synthetic
+      // keyboard/input events until the menu is open). Element-based
+      // comboboxes (Rippling DIVs) are their own click target and can't be
+      // typed into — the option is matched from the full menu instead.
+      const control = input.closest('[class*="control" i]')
+        || (input instanceof HTMLInputElement ? input.parentElement : input);
+      if (control) dispatchPointerClick(control);
+      if (input instanceof HTMLInputElement) {
+        setNativeValue(input, value);
+        const lastChar = value.slice(-1) || 'a';
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: lastChar, bubbles: true }));
+        input.dispatchEvent(new KeyboardEvent('keyup', { key: lastChar, bubbles: true }));
+      }
 
-      // Options render asynchronously; give the widget time to fetch/render them.
-      setTimeout(() => {
+      // Options can load from the network (Greenhouse's city search) — poll
+      // for them for up to ~3.5s instead of checking once.
+      let attempts = 0;
+      const tryPick = () => {
+        attempts++;
+        let picked = false;
         try {
           let listbox = null;
           const ctrl = input.getAttribute('aria-controls') || input.getAttribute('aria-owns');
@@ -549,26 +644,31 @@ window.runVegaAutofill = function(profile) {
             ? Array.from(listbox.querySelectorAll('[role="option"], li'))
             : Array.from(document.querySelectorAll('[role="option"]'));
           if (!options.length) {
+            if (attempts < 8) {
+              setTimeout(tryPick, 400);
+              return;
+            }
             vegaLog(`• Typed "${trunc(value)}" into a typeahead, but no suggestions appeared — you may need to pick one manually.`);
-            return;
-          }
-          const normVal = normalizeString(value);
-          let target = options.find(o => normalizeString(o.textContent) === normVal)
-            || options.find(o => normalizeString(o.textContent).includes(normVal))
-            || options[0];
-          if (target) {
-            target.scrollIntoView({ block: 'nearest' });
-            target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-            target.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
-            target.click();
-            filledCount++;
-            highlight(input);
-            vegaLog(`✓ Selected "${trunc((target.textContent || '').trim())}" from a typeahead`);
+          } else {
+            const normVal = normalizeString(value);
+            const target = options.find(o => normalizeString(o.textContent) === normVal)
+              || options.find(o => normalizeString(o.textContent).includes(normVal))
+              || options[0];
+            if (target) {
+              target.scrollIntoView({ block: 'nearest' });
+              dispatchPointerClick(target);
+              picked = true;
+              filledCount++;
+              highlight(input);
+              vegaLog(`✓ Selected "${trunc((target.textContent || '').trim())}" from a typeahead`);
+            }
           }
         } catch (e) { /* ignore */ }
-      }, 800);
-    } catch (e) { /* ignore */ }
-  };
+        setTimeout(resolve, picked ? 250 : 100); // let the widget commit before the next fill
+      };
+      setTimeout(tryPick, 800);
+    } catch (e) { resolve(); }
+  });
 
   const fillTypeaheadComboboxes = () => {
     const combos = queryAllIncludingShadows(
@@ -583,12 +683,18 @@ window.runVegaAutofill = function(profile) {
       const isLocation = ['location', 'city', 'ciudad', 'where are you', 'intend to work', 'where do you'].some(k => norm.includes(k));
       const isPhoneCountry = norm.includes('country') && (norm.includes('phone') || norm.includes('dial') || norm.includes('code') || norm.includes('telefono'));
 
+      const fillCombo = (val) => {
+        matchedElements.add(input);
+        enqueueFill(() => {
+          if ((input.value || '').trim() || readComboboxSelection(input)) return; // user got there first
+          return selectFromTypeahead(input, val); // holds the queue until picked
+        });
+      };
       if (isLocation) {
         const val = candidateCity || (profile.targetLocations && profile.targetLocations[0]) || '';
-        if (val) { matchedElements.add(input); selectFromTypeahead(input, val); }
+        if (val) fillCombo(val);
       } else if (isPhoneCountry) {
-        const val = candidateCountry || 'United States';
-        matchedElements.add(input); selectFromTypeahead(input, val);
+        fillCombo(candidateCountry || 'United States');
       }
     });
   };
@@ -690,24 +796,55 @@ window.runVegaAutofill = function(profile) {
 
     if (bestKey) {
       matchedElements.add(input);
-      // Remember the user's edits to this standard field (synced to profile).
-      attachStandardSync(input, bestKey);
       const valToSet = fieldMapping[bestKey];
       console.log(`Vega: Matched field "${bestKey}" with score ${bestScore} for input:`, input);
-      const current = (input.value || '').trim();
       const wanted = valToSet ? String(valToSet).trim() : '';
+
+      if (isComboboxEl(input)) {
+        // Combobox-backed standard fields (Greenhouse's Country / Location):
+        // typing text into them never commits a value, so pick from the menu
+        // instead — once only, and never over an existing selection. The
+        // user's own picks are recorded as a remembered answer.
+        const sig = buildFieldSignature(input);
+        if (sig) attachCustomFieldListener(input, sig);
+        // Location-ish comboboxes search remote city lists — query with just
+        // the city, not the full "City, State, Country" string.
+        const comboValue = (bestKey === 'location' || bestKey === 'city') && candidateCity ? candidateCity : wanted;
+        if (comboValue && !input.__vegaComboFilled && !(input.value || '').trim() && !readComboboxSelection(input)) {
+          input.__vegaComboFilled = true;
+          input.__vegaLastSaved = comboValue; // our own pick is not a user answer
+          enqueueFill(() => {
+            if ((input.value || '').trim() || readComboboxSelection(input)) return; // user got there first
+            return selectFromTypeahead(input, comboValue); // holds the queue until picked
+          });
+        }
+        return;
+      }
+
+      // Remember the user's edits to this standard field (synced to profile).
+      attachStandardSync(input, bestKey);
+      const current = (input.value || '').trim();
       const canOverwrite = overwriteStandard && !input.__vegaUserEdited;
       if (wanted && current === wanted) {
         standardFills.push({ el: input, value: wanted }); // already correct — still guard it
-      } else if (wanted && (current === '' || canOverwrite)) {
-        input.__vegaStdLast = wanted; // don't treat our own fill as a user edit
-        setNativeValue(input, wanted);
+      } else if (wanted && (current === '' || canOverwrite) && !input.__vegaFillQueued) {
+        input.__vegaFillQueued = true;
         standardFills.push({ el: input, value: wanted });
         filledCount++;
-        highlight(input);
-        vegaLog(current === ''
-          ? `✓ Filled field "${bestKey}" → "${trunc(wanted)}"`
-          : `↻ Replaced page value of "${bestKey}" with your profile's → "${trunc(wanted)}"`);
+        const wasEmpty = current === '';
+        enqueueFill(() => {
+          input.__vegaFillQueued = false;
+          if (input.__vegaUserEdited) return; // user typed here during the stagger
+          const cur = (input.value || '').trim();
+          if (cur === wanted) return;
+          if (cur !== '' && !overwriteStandard) return;
+          input.__vegaStdLast = wanted; // don't treat our own fill as a user edit
+          setNativeValue(input, wanted);
+          highlight(input);
+          vegaLog(wasEmpty
+            ? `✓ Filled field "${bestKey}" → "${trunc(wanted)}"`
+            : `↻ Replaced page value of "${bestKey}" with your profile's → "${trunc(wanted)}"`);
+        });
       } else if (!valToSet) {
         // The field was recognized but there's nothing to put in it — tell the
         // user so they know to fill it in their Vega profile (this is the usual
@@ -742,6 +879,9 @@ window.runVegaAutofill = function(profile) {
 
   for (const [groupName, radios] of Object.entries(radioGroups)) {
     if (radios.length < 2) continue;
+    // Fill-once: if any option is already selected (by the user or a draft
+    // restore), leave the group alone instead of forcing the profile answer.
+    if (radios.some(r => r.checked)) continue;
     
     let questionText = "";
     const firstRadio = radios[0];
@@ -794,10 +934,12 @@ window.runVegaAutofill = function(profile) {
     }
 
     if (targetSelection) {
-      radios.forEach(r => matchedElements.add(r));
+      // Deliberately NOT added to matchedElements: radio-group learning must
+      // still watch these groups so the user's own pick is recorded and
+      // remembered — the profile-derived fill below is only a default.
       let selectedRadio = null;
 
-      for (const radio of radios) {
+      const radioLabel = (radio) => {
         let labelText = "";
         if (radio.id) {
           const lbl = document.querySelector(`label[for="${CSS.escape(radio.id)}"]`);
@@ -807,7 +949,11 @@ window.runVegaAutofill = function(profile) {
           const parentLabel = radio.closest('label');
           if (parentLabel) labelText = parentLabel.textContent;
         }
-        
+        return labelText;
+      };
+
+      for (const radio of radios) {
+        const labelText = radioLabel(radio);
         const normLabel = normalizeString(labelText || radio.value);
         
         if (targetSelection === 'yes') {
@@ -845,13 +991,32 @@ window.runVegaAutofill = function(profile) {
         }
       }
 
-      if (selectedRadio && !selectedRadio.checked) {
-        selectedRadio.checked = true;
-        selectedRadio.dispatchEvent(new Event('change', { bubbles: true }));
-        selectedRadio.dispatchEvent(new Event('click', { bubbles: true }));
+      // Long option labels ("No, I do not require Visa sponsorship.") never
+      // match the short keyword lists — classify their yes/no polarity instead.
+      if (!selectedRadio && (targetSelection === 'yes' || targetSelection === 'no')) {
+        const subject = isSponsorshipQuestion
+          ? ['sponsorship', 'sponsor', 'visa']
+          : ['authorized', 'legally', 'work'];
+        selectedRadio = radios.find(r =>
+          classifyAffirmation(radioLabel(r) || r.value, subject) === targetSelection
+        ) || null;
+      }
+
+      if (selectedRadio && !selectedRadio.checked && !selectedRadio.__vegaFillQueued) {
+        selectedRadio.__vegaFillQueued = true;
         filledCount++;
-        highlight(selectedRadio.closest('label') || selectedRadio);
-        vegaLog(`✓ Selected option "${trunc(selectedRadio.value || targetSelection)}" for a multiple-choice question`);
+        enqueueFill(() => {
+          selectedRadio.__vegaFillQueued = false;
+          if (radios.some(r => r.checked)) return; // user picked during the stagger
+          // Mark as OUR default so a remembered answer may override it —
+          // but a radio the user clicked themselves never gets overridden.
+          selectedRadio.__vegaAutoChecked = true;
+          // Native activation: manually setting .checked gets reverted by
+          // React-controlled forms (Ashby); .click() updates their state too.
+          try { selectedRadio.click(); } catch (e) { /* ignore */ }
+          highlight(selectedRadio.closest('label') || selectedRadio);
+          vegaLog(`✓ Selected option "${trunc(selectedRadio.value || targetSelection)}" for a multiple-choice question`);
+        });
       }
     }
   }
@@ -880,13 +1045,18 @@ window.runVegaAutofill = function(profile) {
       
     if (isSponsorshipCheckbox) {
       matchedElements.add(checkbox); // handled here — keep it out of checkbox learning
+      if (checkbox.__vegaFilledOnce) return; // don't undo the user's toggle on rescans
+      checkbox.__vegaFilledOnce = true;
       const targetState = requiresSponsorship;
       if (checkbox.checked !== targetState) {
-        checkbox.checked = targetState;
-        checkbox.dispatchEvent(new Event('change', { bubbles: true }));
         filledCount++;
-        highlight(checkbox.closest('label') || checkbox);
-        vegaLog(`✓ ${targetState ? 'Checked' : 'Unchecked'} sponsorship checkbox`);
+        enqueueFill(() => {
+          if (checkbox.checked === targetState) return;
+          // Native activation so React-controlled checkboxes keep the state.
+          try { checkbox.click(); } catch (e) { checkbox.checked = targetState; }
+          highlight(checkbox.closest('label') || checkbox);
+          vegaLog(`✓ ${targetState ? 'Checked' : 'Unchecked'} sponsorship checkbox`);
+        });
       }
     }
   });
@@ -895,59 +1065,47 @@ window.runVegaAutofill = function(profile) {
   const selects = queryAllIncludingShadows('select');
   selects.forEach(select => {
     if (select.disabled) return;
+    // Fill-once: a select that already has a value (user's pick, page
+    // default, or an earlier fill) must not be overridden — the dynamic
+    // rescan used to snap the menu straight back to the profile value after
+    // the user chose a different option.
+    if ((select.value || '').trim() !== '') return;
     const labelText = getFieldText(select);
     const normLabel = normalizeString(labelText);
-
-    if (normLabel.includes('country') || normLabel.includes('nationality') || normLabel.includes('pais') || normLabel.includes('nacionalidad')) {
-      matchedElements.add(select);
-      const targetCountry = candidateCountry || 'united states';
-      const normTarget = normalizeString(targetCountry);
-      
-      for (const option of select.options) {
-        const normOpt = normalizeString(option.text || option.value);
-        if (normOpt === normTarget || normOpt.includes(normTarget) || normTarget.includes(normOpt) ||
-            (normTarget === 'united states' && ['us', 'usa', 'united states of america'].includes(normOpt))) {
-          if (select.value !== option.value) {
-            select.value = option.value;
-            select.dispatchEvent(new Event('change', { bubbles: true }));
-            filledCount++;
-            highlight(select);
-            vegaLog(`✓ Selected country "${trunc(option.text || option.value)}"`);
-          }
-          return;
-        }
-      }
-    }
 
     const matchAndSetOption = (targetValue) => {
       if (!targetValue) return;
       const normTarget = normalizeString(targetValue);
-      for (const option of select.options) {
-        const normOpt = normalizeString(option.text || option.value);
-        let isMatch = normOpt.includes(normTarget) || normTarget.includes(normOpt);
-        
-        if (!isMatch) {
-          if (normTarget === 'male' && ['male', 'man', 'm', 'masculino', 'hombre'].includes(normOpt)) {
-            isMatch = true;
-          } else if (normTarget === 'female' && ['female', 'woman', 'f', 'femenino', 'mujer'].includes(normOpt)) {
-            isMatch = true;
-          } else if (normTarget === 'non binary' && ['non-binary', 'nonbinary', 'genderqueer', 'no binario'].includes(normOpt)) {
-            isMatch = true;
-          } else if (normTarget.includes('decline') && (normOpt.includes('decline') || normOpt.includes('prefer not') || normOpt.includes('no decir') || normOpt.includes('no declarar'))) {
-            isMatch = true;
-          }
+      // Staged matching: exact equality, then curated synonyms, then loose
+      // substring LAST — "female".includes("male") is true, so a loose pass
+      // running first used to select Male for a Female target.
+      const findOption = () => {
+        for (const option of select.options) {
+          if (normalizeString(option.text || option.value) === normTarget) return option;
         }
-
-        if (isMatch) {
-          if (select.value !== option.value) {
-            select.value = option.value;
-            select.dispatchEvent(new Event('change', { bubbles: true }));
-            filledCount++;
-            highlight(select);
-            vegaLog(`✓ Selected "${trunc(option.text || option.value)}" from a dropdown`);
-          }
-          return;
+        for (const option of select.options) {
+          const normOpt = normalizeString(option.text || option.value);
+          if (normTarget === 'male' && ['male', 'man', 'm', 'masculino', 'hombre'].includes(normOpt)) return option;
+          if (normTarget === 'female' && ['female', 'woman', 'f', 'femenino', 'mujer'].includes(normOpt)) return option;
+          if (normTarget === 'non binary' && ['non-binary', 'nonbinary', 'genderqueer', 'no binario'].includes(normOpt)) return option;
+          if (normTarget.includes('decline') && (normOpt.includes('decline') || normOpt.includes('prefer not') || normOpt.includes('no decir') || normOpt.includes('no declarar'))) return option;
         }
+        for (const option of select.options) {
+          if (!option.value) continue; // never loose-match the placeholder
+          const normOpt = normalizeString(option.text || option.value);
+          if (normOpt.includes(normTarget) || normTarget.includes(normOpt)) return option;
+        }
+        return null;
+      };
+      const option = findOption();
+      if (option && select.value !== option.value) {
+        filledCount++;
+        enqueueFill(() => {
+          if ((select.value || '').trim() !== '') return; // user picked during the stagger
+          setNativeSelectValue(select, option.value);
+          highlight(select);
+          vegaLog(`✓ Selected "${trunc(option.text || option.value)}" from a dropdown`);
+        });
       }
     };
 
@@ -962,11 +1120,13 @@ window.runVegaAutofill = function(profile) {
         if (!option.value) continue; // skip the "Select…" placeholder
         if (classifyAffirmation(option.text || option.value, subjectKeywords) === want) {
           if (select.value !== option.value) {
-            select.value = option.value;
-            select.dispatchEvent(new Event('change', { bubbles: true }));
             filledCount++;
-            highlight(select);
-            vegaLog(`✓ Selected "${trunc(option.text || option.value)}" from a dropdown`);
+            enqueueFill(() => {
+              if ((select.value || '').trim() !== '') return; // user picked during the stagger
+              setNativeSelectValue(select, option.value);
+              highlight(select);
+              vegaLog(`✓ Selected "${trunc(option.text || option.value)}" from a dropdown`);
+            });
           }
           return true;
         }
@@ -974,7 +1134,42 @@ window.runVegaAutofill = function(profile) {
       return false;
     };
 
-    if (normLabel.includes('gender') || normLabel.includes('sex ') || normLabel.endsWith(' sex') || normLabel.includes('genero')) {
+    // Work-authorization and sponsorship questions usually mention "the
+    // country in which you are applying" — they must be classified BEFORE the
+    // country selector, which used to claim them and answer "USA".
+    const isAuthQuestion = (normLabel.includes('authorize') || normLabel.includes('legally')) &&
+      (normLabel.includes('work') || normLabel.includes('employment'));
+    const isSponsorQuestion = (normLabel.includes('sponsor') || normLabel.includes('visa')) &&
+      (normLabel.includes('require') || normLabel.includes('need') || normLabel.includes('future') || normLabel.includes('now'));
+
+    if (isAuthQuestion) {
+      matchedElements.add(select);
+      if (!matchByAffirmation(isAuthorized ? 'yes' : 'no', ['authorized', 'legally']))
+        matchAndSetOption(isAuthorized ? 'yes' : 'no');
+    } else if (isSponsorQuestion) {
+      matchedElements.add(select);
+      if (!matchByAffirmation(requiresSponsorship ? 'yes' : 'no', ['sponsorship', 'sponsor', 'visa']))
+        matchAndSetOption(requiresSponsorship ? 'yes' : 'no');
+    } else if (normLabel.includes('country') || normLabel.includes('nationality') || normLabel.includes('pais') || normLabel.includes('nacionalidad')) {
+      matchedElements.add(select);
+      const targetCountry = candidateCountry || 'united states';
+      const normTarget = normalizeString(targetCountry);
+      for (const option of select.options) {
+        if (!option.value) continue; // skip the "Select…" placeholder
+        const normOpt = normalizeString(option.text || option.value);
+        if (normOpt === normTarget || normOpt.includes(normTarget) || normTarget.includes(normOpt) ||
+            (normTarget === 'united states' && ['us', 'usa', 'united states of america'].includes(normOpt))) {
+          filledCount++;
+          enqueueFill(() => {
+            if ((select.value || '').trim() !== '') return; // user picked during the stagger
+            setNativeSelectValue(select, option.value);
+            highlight(select);
+            vegaLog(`✓ Selected country "${trunc(option.text || option.value)}"`);
+          });
+          break;
+        }
+      }
+    } else if (normLabel.includes('gender') || normLabel.includes('sex ') || normLabel.endsWith(' sex') || normLabel.includes('genero')) {
       matchedElements.add(select);
       matchAndSetOption(profile.gender);
     } else if (normLabel.includes('race') || normLabel.includes('ethnic') || normLabel.includes('raza') || normLabel.includes('etnia')) {
@@ -1011,6 +1206,7 @@ window.runVegaAutofill = function(profile) {
     if (el.tagName === 'TEXTAREA') fieldType = 'textarea';
     else if (el.tagName === 'SELECT') fieldType = 'select';
     else if (el.tagName === 'INPUT') fieldType = (el.type || 'text').toLowerCase();
+    else if (el.getAttribute && el.getAttribute('role') === 'combobox') fieldType = 'combobox';
 
     const fieldKey = normalizeString(label).slice(0, 300);
     if (!fieldKey) return null;
@@ -1035,14 +1231,21 @@ window.runVegaAutofill = function(profile) {
 
   const setCustomValue = (el, value) => {
     if (value == null || value === '') return false;
+    if (el.__vegaFillQueued) return false;
     if (el.tagName === 'SELECT') {
+      // Fill-once: never override a select the user (or page) already set.
+      if ((el.value || '').trim() !== '') return false;
       const normTarget = normalizeString(value);
       for (const option of el.options) {
         const normOpt = normalizeString(option.text || option.value);
         if (normOpt === normTarget || normOpt.includes(normTarget) || normTarget.includes(normOpt)) {
           if (el.value !== option.value) {
-            el.value = option.value;
-            el.dispatchEvent(new Event('change', { bubbles: true }));
+            el.__vegaFillQueued = true;
+            enqueueFill(() => {
+              el.__vegaFillQueued = false;
+              if ((el.value || '').trim() !== '') return; // user picked during the stagger
+              setNativeSelectValue(el, option.value);
+            });
             return true;
           }
           return false;
@@ -1051,7 +1254,12 @@ window.runVegaAutofill = function(profile) {
       return false;
     }
     if (!el.value || el.value.trim() === '') {
-      setNativeValue(el, value);
+      el.__vegaFillQueued = true;
+      enqueueFill(() => {
+        el.__vegaFillQueued = false;
+        if (el.value && el.value.trim() !== '') return; // user typed during the stagger
+        setNativeValue(el, value);
+      });
       return true;
     }
     return false;
@@ -1085,13 +1293,31 @@ window.runVegaAutofill = function(profile) {
   };
 
   // After picking from a react-select/combobox, the typed input is cleared and
-  // the chosen label is rendered in a sibling element — read it from there.
+  // the chosen label is rendered in a SIBLING subtree (e.g. Greenhouse's
+  // ".select__single-value" sits next to the input's own container, not
+  // inside it) — walk a few ancestors and search each for the value node.
   const readComboboxSelection = (el) => {
     try {
-      const container = el.closest('[class*="select" i], [class*="Select"], [role="combobox"]') || el.parentElement;
-      if (container) {
-        const sv = container.querySelector('[class*="singleValue" i], [class*="single-value" i], [class*="multiValue" i]');
+      // Element-based comboboxes (Rippling's DIV[role=combobox]) render the
+      // committed selection as their own text; placeholders don't count.
+      if (el.tagName !== 'INPUT' && el.tagName !== 'SELECT' && el.tagName !== 'TEXTAREA') {
+        const own = (el.textContent || '').replace(/\s+/g, ' ').trim();
+        const n = normalizeString(own);
+        if (own && n && n !== 'select' && !n.startsWith('select ') && n !== 'please select' && n !== 'choose') {
+          return own;
+        }
+      }
+      // Two levels only: react-select keeps the single-value inside the
+      // value-container (the input's grandparent). Walking further crosses
+      // into NEIGHBORING widgets' values (e.g. the phone "+1" selector next
+      // to Country) and misreports this one as already selected.
+      let anc = el.parentElement;
+      let depth = 0;
+      while (anc && depth < 2) {
+        const sv = anc.querySelector('[class*="singleValue" i], [class*="single-value" i], [class*="multiValue" i], [class*="multi-value" i]');
         if (sv && sv.textContent && sv.textContent.trim()) return sv.textContent.trim();
+        anc = anc.parentElement;
+        depth++;
       }
       const act = el.getAttribute && el.getAttribute('aria-activedescendant');
       if (act) { const o = document.getElementById(act); if (o && o.textContent && o.textContent.trim()) return o.textContent.trim(); }
@@ -1103,6 +1329,9 @@ window.runVegaAutofill = function(profile) {
   // force-save the group a just-clicked box belongs to.
   const cbGroupByEl = new Map();
   const radioGroupByEl = new Map();
+  // Every learned combobox input, so a menu-option click (which fires no
+  // change event on the input) can trigger a re-read of all of them.
+  const comboboxEls = new Set();
 
   // Watch a custom (learned) field: any committed value the user enters is
   // saved to the backend so the next autofill can reuse it. Hoisted out of the
@@ -1154,6 +1383,8 @@ window.runVegaAutofill = function(profile) {
     el.addEventListener('blur', handler);
     if (isComboboxEl(el)) {
       el.addEventListener('input', () => setTimeout(handler, 350));
+      el.__vegaComboRead = handler;
+      comboboxEls.add(el);
     }
   };
 
@@ -1161,7 +1392,10 @@ window.runVegaAutofill = function(profile) {
     let pageUrl = '';
     try { pageUrl = location.href; } catch (e) {}
 
-    const candidates = queryAllIncludingShadows('input, textarea, select');
+    // [role="combobox"] covers element-based dropdowns (Rippling renders its
+    // Gender/EEO menus as DIVs, not inputs) — otherwise they're invisible to
+    // every pass: never filled, and picks never recorded.
+    const candidates = queryAllIncludingShadows('input, textarea, select, [role="combobox"]');
     const sigByElement = new Map();   // element -> signature
     const elementsByKey = new Map();  // fieldKey -> [elements]
     const seen = new Map();           // fieldKey -> signature (dedup for payload)
@@ -1223,7 +1457,10 @@ window.runVegaAutofill = function(profile) {
             if (isComboboxEl(el)) {
               // Combobox/react-select: type the saved label and pick the option.
               el.__vegaLastSaved = saved.value; // pre-set so the resulting change isn't re-saved
-              selectFromTypeahead(el, saved.value); // logs its own success/failure
+              enqueueFill(() => {
+                if ((el.value || '').trim() || readComboboxSelection(el)) return; // user got there first
+                return selectFromTypeahead(el, saved.value); // holds the queue until picked
+              });
             } else if (setCustomValue(el, saved.value)) {
               learnedFilled++;
               filledCount++;
@@ -1443,24 +1680,26 @@ window.runVegaAutofill = function(profile) {
           const grp = groupByKey.get(saved.fieldKey);
           if (!grp) return;
           const wanted = new Set(String(saved.value).split('|').map(s => normalizeString(s)).filter(Boolean));
-          grp.__filling = true; // suppress the change listener while we apply
-          let changed = false;
-          grp.boxes.forEach(({ el, optLabel }) => {
-            const want = wanted.has(normalizeString(optLabel));
-            if (el.checked !== want) {
-              el.checked = want;
-              el.dispatchEvent(new Event('input', { bubbles: true }));
-              el.dispatchEvent(new Event('change', { bubbles: true }));
-              changed = true;
+          enqueueFill(() => {
+            if (currentSelection(grp) !== '') return; // user touched the group during the stagger
+            grp.__filling = true; // suppress the change listener while we apply
+            let changed = false;
+            grp.boxes.forEach(({ el, optLabel }) => {
+              const want = wanted.has(normalizeString(optLabel));
+              if (el.checked !== want) {
+                // Native activation so React-controlled checkboxes keep the state.
+                try { el.click(); } catch (e) { el.checked = want; }
+                changed = true;
+              }
+            });
+            grp.__lastSaved = currentSelection(grp);
+            grp.__filling = false;
+            if (changed) {
+              filledCount++;
+              highlight((grp.boxes[0].el.closest('label, fieldset, div')) || grp.boxes[0].el);
+              vegaLog(`✓ Filled remembered checkbox "${trunc(saved.label)}" → "${trunc(saved.value)}"`);
             }
           });
-          grp.__lastSaved = currentSelection(grp);
-          grp.__filling = false;
-          if (changed) {
-            filledCount++;
-            highlight((grp.boxes[0].el.closest('label, fieldset, div')) || grp.boxes[0].el);
-            vegaLog(`✓ Filled remembered checkbox "${trunc(saved.label)}" → "${trunc(saved.value)}"`);
-          }
         });
       });
     } catch (e) {
@@ -1593,16 +1832,19 @@ window.runVegaAutofill = function(profile) {
           const target = grp.boxes.find(b => normalizeString(b.optLabel) === want)
             || grp.boxes.find(b => normalizeString(b.optLabel).includes(want) || want.includes(normalizeString(b.optLabel)));
           if (!target || target.el.checked) return;
-          grp.__filling = true;
-          target.el.checked = true;
-          target.el.dispatchEvent(new Event('input', { bubbles: true }));
-          target.el.dispatchEvent(new Event('change', { bubbles: true }));
-          target.el.dispatchEvent(new Event('click', { bubbles: true }));
-          grp.__lastSaved = currentSelection(grp);
-          grp.__filling = false;
-          filledCount++;
-          highlight(target.el.closest('label') || target.el);
-          vegaLog(`✓ Selected remembered answer "${trunc(saved.value)}" for "${trunc(saved.label)}"`);
+          enqueueFill(() => {
+            // A pick made by the USER wins; our own profile-derived default
+            // (__vegaAutoChecked) yields to the remembered answer.
+            if (grp.boxes.some(b => b.el.checked && !b.el.__vegaAutoChecked)) return;
+            grp.__filling = true;
+            // Native activation so React-controlled radios keep the state.
+            try { target.el.click(); } catch (e) { /* ignore */ }
+            grp.__lastSaved = currentSelection(grp);
+            grp.__filling = false;
+            filledCount++;
+            highlight(target.el.closest('label') || target.el);
+            vegaLog(`✓ Selected remembered answer "${trunc(saved.value)}" for "${trunc(saved.label)}"`);
+          });
         });
       });
     } catch (e) {
@@ -1741,13 +1983,16 @@ window.runVegaAutofill = function(profile) {
           // Exact label match only — never click a button we're unsure about.
           const target = grp.boxes.find(b => normalizeString(b.optLabel) === want);
           if (!target || isButtonActive(target.el)) return;
-          grp.__filling = true;
-          try { target.el.click(); } catch (e) {}
-          grp.__filling = false;
-          grp.__lastSaved = String(saved.value);
-          filledCount++;
-          highlight(target.el);
-          vegaLog(`✓ Selected remembered answer "${trunc(saved.value)}" for "${trunc(saved.label)}"`);
+          enqueueFill(() => {
+            if (currentSelection(grp) !== '') return; // user picked during the stagger
+            grp.__filling = true;
+            try { target.el.click(); } catch (e) {}
+            grp.__filling = false;
+            grp.__lastSaved = String(saved.value);
+            filledCount++;
+            highlight(target.el);
+            vegaLog(`✓ Selected remembered answer "${trunc(saved.value)}" for "${trunc(saved.label)}"`);
+          });
         });
       });
     } catch (e) {
@@ -1785,8 +2030,8 @@ window.runVegaAutofill = function(profile) {
         for (const m of muts) {
           for (const node of m.addedNodes) {
             if (node.nodeType !== 1) continue;
-            if ((node.matches && node.matches('input, textarea, select')) ||
-                (node.querySelector && node.querySelector('input, textarea, select'))) {
+            if ((node.matches && node.matches('input, textarea, select, [role="combobox"]')) ||
+                (node.querySelector && node.querySelector('input, textarea, select, [role="combobox"]'))) {
               scheduleRescan();
               return;
             }
@@ -1814,10 +2059,13 @@ window.runVegaAutofill = function(profile) {
       }
       if (SKIP_TYPES.has(type)) return;
 
-      // Standard profile field the initial pass missed?
+      // Standard profile field the initial pass missed? Text inputs only —
+      // a select whose label merely mentions "country" (e.g. "Do you require
+      // sponsorship … in the country …") must not patch the profile with its
+      // picked option; selects and textareas are remembered as custom fields.
       let bestKey = null;
       let bestScore = 30;
-      if (el.tagName !== 'TEXTAREA') {
+      if (el instanceof HTMLInputElement) {
         for (const fieldKey of Object.keys(fieldKeywords)) {
           const score = getScoreForField(el, fieldKey);
           if (score > bestScore) { bestScore = score; bestKey = fieldKey; }
@@ -1838,6 +2086,21 @@ window.runVegaAutofill = function(profile) {
     // learned yet: learn the group now and persist the clicked option.
     document.addEventListener('click', (e) => {
       if (!e.isTrusted) return;
+
+      // A mouse pick in a combobox menu (react-select et al.) commits the
+      // value without firing change/input on the combobox's input — re-read
+      // every learned combobox shortly after any menu-option click.
+      const optEl = e.target && e.target.closest
+        ? e.target.closest('[role="option"], [id*="-option-"]')
+        : null;
+      if (optEl) {
+        setTimeout(() => {
+          comboboxEls.forEach(ce => {
+            try { if (ce.isConnected && ce.__vegaComboRead) ce.__vegaComboRead(); } catch (err) { /* ignore */ }
+          });
+        }, 350);
+      }
+
       const btn = e.target && e.target.closest ? e.target.closest('button') : null;
       if (!btn || btn.__vegaBtnListener) return;
       const label = getButtonOptionLabel(btn);
