@@ -19,6 +19,7 @@ import ApplicationDetail from './pages/ApplicationDetail';
 import Jobs from './pages/Jobs';
 import NewsCompanies from './pages/NewsCompanies';
 import Admin from './pages/Admin';
+import { PrivacyPolicy, TermsOfService } from './pages/Legal';
 
 function Layout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -93,6 +94,8 @@ function AppRoutes() {
     <Routes>
       <Route path="/" element={<Home />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/privacy" element={<PrivacyPolicy />} />
+      <Route path="/terms" element={<TermsOfService />} />
       <Route
         path="/*"
         element={
