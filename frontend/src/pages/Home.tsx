@@ -168,6 +168,10 @@ export default function Home() {
 
       <footer className="border-t border-gray-100 dark:border-white/[0.07] py-6 text-center text-xs text-gray-400 dark:text-zinc-500">
         © {new Date().getFullYear()} Vega. All rights reserved.
+        <span className="mx-2">·</span>
+        <a href="/privacy" className="hover:underline">Privacy Policy</a>
+        <span className="mx-2">·</span>
+        <a href="/terms" className="hover:underline">Terms of Service</a>
       </footer>
     </div>
   );
