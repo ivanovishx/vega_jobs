@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Mail, Lock } from 'lucide-react';
 import axios from 'axios';
+import { setToken } from '../auth/token';
 import { useAuth } from '../context/AuthContext';
 import ThemeToggle from '../components/ThemeToggle';
 
@@ -79,7 +80,8 @@ function LoginForm() {
     setError('');
     setLoading(true);
     try {
-      await axios.post(`${API_BASE}/auth/login`, { email, password }, { withCredentials: true });
+      const res = await axios.post(`${API_BASE}/auth/login`, { email, password }, { withCredentials: true });
+      setToken(res.data?.token);
       await refreshUser();
       navigate('/dashboard');
     } catch (err: any) {
@@ -154,7 +156,8 @@ function RegisterForm({ onSwitchTab }: { onSwitchTab: () => void }) {
     }
     setLoading(true);
     try {
-      await axios.post(`${API_BASE}/auth/register`, { email, password, name }, { withCredentials: true });
+      const res = await axios.post(`${API_BASE}/auth/register`, { email, password, name }, { withCredentials: true });
+      setToken(res.data?.token);
       await refreshUser();
       navigate('/dashboard');
     } catch (err: any) {

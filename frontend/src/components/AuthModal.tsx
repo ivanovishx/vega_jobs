@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { X, Eye, EyeOff, User, Mail, Lock, Phone } from 'lucide-react';
 import axios from 'axios';
+import { setToken } from '../auth/token';
 import { useAuth } from '../context/AuthContext';
 
 const API_BASE = import.meta.env.VITE_API_URL?.replace(/\/api\/?$/, '') || 'http://localhost:3001';
@@ -98,7 +99,8 @@ function LoginForm({ onClose, refreshUser, onSwitchTab }: {
     setError('');
     setLoading(true);
     try {
-      await axios.post(`${API_BASE}/auth/login`, { email, password }, { withCredentials: true });
+      const res = await axios.post(`${API_BASE}/auth/login`, { email, password }, { withCredentials: true });
+      setToken(res.data?.token);
       await refreshUser();
       onClose();
     } catch (err: any) {
@@ -195,11 +197,12 @@ function RegisterForm({ onClose, refreshUser, onSwitchTab }: {
     setLoading(true);
     try {
       const name = [firstName.trim(), lastName.trim()].filter(Boolean).join(' ');
-      await axios.post(
+      const res = await axios.post(
         `${API_BASE}/auth/register`,
         { email, password, name, phone: phone || undefined },
         { withCredentials: true }
       );
+      setToken(res.data?.token);
       await refreshUser();
       onClose();
     } catch (err: any) {

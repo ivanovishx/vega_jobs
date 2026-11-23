@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { attachAuthHeader } from '../auth/token';
 
 const getBaseUrl = () => {
   const envUrl = import.meta.env.VITE_API_URL;
@@ -11,6 +12,7 @@ const api = axios.create({
   baseURL: getBaseUrl(),
   withCredentials: true,
 });
+attachAuthHeader(api);
 
 export const fetchProfile = async () => {
   const res = await api.get('profile');

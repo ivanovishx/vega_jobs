@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import { clearToken } from '../auth/token';
 
 interface User {
   id: string;
@@ -34,7 +35,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const res = await axios.get<User>(`${API_BASE}/auth/me`, { withCredentials: true });
       setUser(res.data);
-    } catch {
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response?.status === 401) clearToken();
       setUser(null);
     }
   };
@@ -44,7 +46,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = async () => {
-    await axios.post(`${API_BASE}/auth/logout`, {}, { withCredentials: true });
+    clearToken();
+    await axios.post(`${API_BASE}/auth/logout`, {}, { withCredentials: true }).catch(() => {});
     setUser(null);
     navigate('/', { replace: true });
   };
