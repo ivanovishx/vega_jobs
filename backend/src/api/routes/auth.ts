@@ -27,6 +27,12 @@ function driveOAuthClient() {
   );
 }
 
+function readToken(req: Request): string | undefined {
+  const header = req.headers.authorization;
+  if (header?.startsWith('Bearer ')) return header.slice(7);
+  return req.cookies?.token;
+}
+
 function makeToken(userId: string) {
   return jwt.sign({ userId }, JWT_SECRET, { expiresIn: '30d' });
 }
@@ -116,8 +122,11 @@ router.get(
         passport.authenticate('google', { session: false, failureRedirect: `${FRONTEND_URL}?auth_error=1` }),
         (req: Request, res: Response) => {
           const user = req.user as { id: string };
-          setTokenCookie(res, makeToken(user.id));
-          res.redirect(FRONTEND_URL);
+          const token = makeToken(user.id);
+          setTokenCookie(res, token);
+          // Also pass the token in the URL fragment: browsers that block third-party
+          // cookies (Safari, iOS, Brave, incognito) never send the cookie to this API.
+          res.redirect(`${FRONTEND_URL}/#token=${encodeURIComponent(token)}`);
         },
       ]
     : [googleNotConfigured])
@@ -126,6 +135,30 @@ router.get(
 // ── Save CV template to the user's Google Drive ───────────────────────────────
 // Incremental Drive consent: the user grants `drive.file` once, we use the access
 // token immediately to copy the template into their Drive, and never store it.
+
+function driveConsentUrl(userId: string) {
+  // Carry the user id through the round-trip in a short-lived signed state param.
+  const state = jwt.sign({ userId }, JWT_SECRET, { expiresIn: '10m' });
+  return driveOAuthClient().generateAuthUrl({
+    access_type: 'online',
+    scope: [DRIVE_SCOPE],
+    state,
+  });
+}
+
+// Returns the Google consent URL as JSON so the frontend can authenticate with its
+// Bearer token (the cookie may be blocked cross-site) and then navigate to it.
+router.get('/google/drive/url', (req: Request, res: Response) => {
+  if (!googleConfigured) return googleNotConfigured(req, res);
+  const token = readToken(req);
+  if (!token) { res.status(401).json({ error: 'Not authenticated' }); return; }
+  try {
+    const { userId } = jwt.verify(token, JWT_SECRET) as { userId: string };
+    res.json({ url: driveConsentUrl(userId) });
+  } catch {
+    res.status(401).json({ error: 'Invalid token' });
+  }
+});
 
 router.get('/google/drive', (req: Request, res: Response) => {
   if (!googleConfigured) return googleNotConfigured(req, res);
@@ -140,14 +173,7 @@ router.get('/google/drive', (req: Request, res: Response) => {
     return res.redirect(`${FRONTEND_URL}/cv-template?drive=auth`);
   }
 
-  // Carry the user id through the round-trip in a short-lived signed state param.
-  const state = jwt.sign({ userId }, JWT_SECRET, { expiresIn: '10m' });
-  const url = driveOAuthClient().generateAuthUrl({
-    access_type: 'online',
-    scope: [DRIVE_SCOPE],
-    state,
-  });
-  res.redirect(url);
+  res.redirect(driveConsentUrl(userId));
 });
 
 router.get('/google/drive/callback', async (req: Request, res: Response) => {
@@ -262,7 +288,7 @@ router.post('/login', async (req: Request, res: Response) => {
 
 router.get('/me', async (req: Request, res: Response) => {
   const impersonationToken = req.cookies?.impersonation_token;
-  const token = req.cookies?.token || req.headers.authorization?.replace('Bearer ', '');
+  const token = readToken(req);
 
   if (impersonationToken) {
     try {

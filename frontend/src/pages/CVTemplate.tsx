@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Copy, Check, Download, Sparkles, HardDriveUpload, Link2, ExternalLink, X } from 'lucide-react';
+import axios from 'axios';
 import { fetchProfile, updateProfile } from '../api/client';
 
 // The template is shown as a rendered PNG (frontend/public/cv-template.png) for a
@@ -11,7 +12,17 @@ const IMAGE_URL = '/cv-template.png';
 // Backend root (auth routes live outside the /api prefix). "Save to my Drive"
 // is a full-page OAuth redirect, same pattern as the Google login button.
 const AUTH_BASE = import.meta.env.VITE_API_URL?.replace(/\/api\/?$/, '') || 'http://localhost:3001';
-const DRIVE_SAVE_URL = `${AUTH_BASE}/auth/google/drive`;
+const DRIVE_URL_ENDPOINT = `${AUTH_BASE}/auth/google/drive/url`;
+
+// Ask the API (authenticated with the Bearer token) for the Google consent URL, then go there.
+async function startDriveSave() {
+  try {
+    const res = await axios.get<{ url: string }>(DRIVE_URL_ENDPOINT, { withCredentials: true });
+    window.location.href = res.data.url;
+  } catch {
+    window.location.href = '/cv-template?drive=auth';
+  }
+}
 
 function buildPrompt(profile: any): string {
   const name = profile?.user?.name || '[Your name]';
@@ -205,13 +216,14 @@ export default function CVTemplate() {
               Reference template
             </h3>
             <div className="flex flex-wrap items-center gap-2">
-              <a
-                href={DRIVE_SAVE_URL}
+              <button
+                type="button"
+                onClick={startDriveSave}
                 className="inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 transition-colors"
               >
                 <HardDriveUpload className="h-4 w-4" />
                 {driveFileUrl ? 'Save again' : 'Save to my Drive'}
-              </a>
+              </button>
 
               {driveFileUrl ? (
                 <a

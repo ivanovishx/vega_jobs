@@ -11,7 +11,10 @@ export interface AuthRequest extends Request {
 
 export function requireAuth(req: AuthRequest, res: Response, next: NextFunction) {
   const impersonationToken = req.cookies?.impersonation_token;
-  const token = req.cookies?.token || req.headers.authorization?.replace('Bearer ', '');
+  // Prefer the Authorization header: the frontend always sends it, while the cookie
+  // is cross-site and may be blocked or stale.
+  const header = req.headers.authorization;
+  const token = header?.startsWith('Bearer ') ? header.slice(7) : req.cookies?.token;
 
   if (impersonationToken) {
     try {
